@@ -166,6 +166,7 @@ const ICONS = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   palette: '<circle cx="13.5" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".7" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".7" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/>',
+  filecheck: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
@@ -320,6 +321,7 @@ const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { key: 'units', label: 'Data Unit', icon: 'moto' },
   { key: 'invoices', label: 'Invoice', icon: 'receipt', show: () => S.user.role !== 'mekanik' },
+  { key: 'bastds', label: 'BASTD', icon: 'filecheck', show: () => S.user.role !== 'mekanik' },
   { key: 'customers', label: 'Pelanggan', icon: 'contact', show: () => S.user.role !== 'mekanik' },
   { key: 'reports', label: 'Laba Rugi', icon: 'chart', show: () => !!S.perm.viewReports },
   { key: 'users', label: 'Pengguna', icon: 'users', show: () => !!S.perm.manageUsers }
@@ -453,6 +455,7 @@ function go(page) {
     dashboard: ['Dashboard', 'Ringkasan showroom hari ini'],
     units: ['Data Unit', 'Stok motor, biaya & total modal'],
     invoices: ['Invoice Penjualan', 'Buat, cetak & kelola invoice'],
+    bastds: ['BASTD', 'Berita Acara Serah Terima Dokumen (STNK & BPKB)'],
     customers: ['Pelanggan', 'Database pembeli & riwayat transaksi'],
     reports: ['Laporan Laba Rugi', 'Performa penjualan & profitabilitas'],
     users: ['Manajemen Pengguna', 'Akun, role & hak akses']
@@ -462,7 +465,7 @@ function go(page) {
   $('#pg-sub').textContent = t[1];
   closeSidebarMobile();
   const pages = { dashboard: pageDashboard, units: pageUnits, invoices: pageInvoices,
-    customers: pageCustomers, reports: pageReports, users: pageUsers };
+    bastds: pageBastds, customers: pageCustomers, reports: pageReports, users: pageUsers };
   (pages[page] || pageDashboard)();
 }
 
@@ -1851,7 +1854,220 @@ async function downloadCsv(path, filename) {
   } catch (err) { toast(err.message, 'err'); }
 }
 
-/* ============================================================
-   Inisialisasi
-============================================================ */
+/* ---------- BASTD (Berita Acara Serah Terima Dokumen) ---------- */
+const DOC_LIST = [['stnk','STNK'],['bpkb','BPKB'],['faktur','Faktur'],['formA','Form A'],['ktp','KTP'],['lainnya','Lainnya']];
+const DOC_LABEL = {}; DOC_LIST.forEach(([k, l]) => { DOC_LABEL[k] = l; });
+
+function docBadge(key) {
+  const cls = key === 'bpkb' ? 'terlambat' : 'proses';
+  return '<span class="badge bpkb-' + cls + '" style="font-size:.66rem">' + (DOC_LABEL[key] || key) + '</span>';
+}
+
+async function pageBastds() {
+  if (S.user.role === 'mekanik') { $('#content').innerHTML = '<div class="card"><div class="alert error">Tidak diizinkan.</div></div>'; return; }
+  const c = $('#content');
+  c.innerHTML = '<div class="empty-state"><p>Memuat BASTD…</p></div>';
+  let list;
+  try { list = await API.get('/bastds'); }
+  catch (err) { c.innerHTML = '<div class="card"><div class="alert error">' + esc(err.message) + '</div></div>'; return; }
+
+  c.innerHTML =
+    '<div class="toolbar"><div class="search-box">' + ic('search') +
+      '<input id="b-q" type="text" placeholder="Cari no BASTD / unit / pembeli…"></div>' +
+    '<button class="btn primary" id="btn-add-bastd">' + ic('plus', 16) + ' Buat BASTD</button></div>' +
+    '<div id="b-table"></div>';
+
+  function render() {
+    const q = ($('#b-q').value || '').toLowerCase();
+    let rows = list;
+    if (q) rows = rows.filter((x) => [x.number, x.snapshot && x.snapshot.unitName, x.snapshot && x.snapshot.buyerName]
+      .join(' ').toLowerCase().includes(q));
+    const trs = rows.map((d) =>
+      '<tr data-bastd="' + d.id + '" style="cursor:pointer">' +
+      '<td><span class="mono">' + esc(d.number) + '</span><div class="cell-sub">' + fmtDate(d.date) + '</div></td>' +
+      '<td><div class="cell-main">' + esc(d.snapshot.unitName) + '</div>' +
+        '<div class="cell-sub">' + esc(d.snapshot.nopol || d.snapshot.unitCode) + '</div></td>' +
+      '<td><div class="cell-main">' + esc(d.snapshot.buyerName) + '</div>' +
+        '<div class="cell-sub">' + esc(d.snapshot.buyerPhone || '') + '</div></td>' +
+      '<td><div class="bastd-docs">' + d.type.map(docBadge).join('') + '</div></td>' +
+      '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(d.createdBy || '—') + '</td>' +
+      '<td><div class="cell-actions">' +
+        '<button class="icon-btn" data-act="print" data-id="' + d.id + '" title="Cetak">' + ic('printer', 17) + '</button>' +
+        (S.perm.manageUsers ? '<button class="icon-btn red" data-act="del" data-id="' + d.id + '" title="Hapus (admin)">' + ic('trash', 16) + '</button>' : '') +
+      '</div></td></tr>').join('');
+    $('#b-table').innerHTML = '<div class="table-wrap"><table class="data">' +
+      '<thead><tr><th>No. BASTD</th><th>Unit</th><th>Pembeli</th><th>Dokumen Diserahkan</th><th>Dibuat Oleh</th><th style="text-align:right">Aksi</th></tr></thead>' +
+      '<tbody>' + (trs || emptyRow(6)) + '</tbody></table></div>';
+    $$('tr[data-bastd]').forEach((tr) => tr.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act]')) return;
+      const d = list.find((x) => x.id === tr.dataset.bastd); if (d) printBastd(d);
+    }));
+    $$('[data-act]').forEach((b) => b.addEventListener('click', async () => {
+      const d = list.find((x) => x.id === b.dataset.id); if (!d) return;
+      if (b.dataset.act === 'print') printBastd(d);
+      else {
+        if (!(await confirmDlg('Hapus BASTD?', 'Dokumen <b>' + esc(d.number) + '</b> akan dihapus permanen.'))) return;
+        try { await API.del('/bastds/' + d.id); toast('BASTD dihapus', 'ok'); pageBastds(); }
+        catch (err) { toast(err.message, 'err'); }
+      }
+    }));
+  }
+  $('#b-q').addEventListener('input', render);
+  $('#btn-add-bastd').addEventListener('click', () => bastdForm());
+  render();
+}
+
+/* ---------- Form BASTD ---------- */
+function bastdDocRow() {
+  return '<div class="doc-grid-row">' +
+    '<select class="bf-key">' + DOC_LIST.map(([k, l]) => '<option value="' + k + '">' + l + '</option>').join('') + '</select>' +
+    '<input type="text" class="bf-num" placeholder="Nomor dokumen (sesuai fisik)">' +
+    '<button type="button" class="icon-btn red" data-dr-del title="Hapus baris">' + ic('trash', 15) + '</button>' +
+  '</div>';
+}
+
+async function bastdForm() {
+  let units;
+  try { units = await API.get('/units'); }
+  catch (err) { toast(err.message, 'err'); return; }
+
+  const sold = units.filter((u) => u.invoiceId);
+  if (!sold.length) { toast('Belum ada unit terjual — buat invoice terlebih dahulu', 'err'); return; }
+
+  const ov = openModal(
+    '<div class="m-head"><div><h3>Buat BASTD</h3>' +
+    '<p class="m-sub">Berita Acara Serah Terima Dokumen — centang dokumen yang diserahkan ke pembeli beserta nomornya.</p></div>' +
+    '<button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<form id="bf-form"><div class="alert error hidden" id="bf-err"></div>' +
+    '<label>Unit Terjual *</label>' +
+    '<select name="unitId">' +
+      sold.map((u) => '<option value="' + u.id + '">' + esc(u.code + ' · ' + u.name + ' (' + u.year + ')') + '</option>').join('') +
+    '</select>' +
+    '<div id="bf-buyer" class="alert ok" style="margin-top:10px"></div>' +
+    '<div class="form-grid">' +
+      '<div><label>Tanggal Serah Terima *</label><input type="date" name="date" value="' + todayISO() + '"></div>' +
+    '</div>' +
+    '<label style="margin-top:16px">Dokumen yang Diserahkan *</label>' +
+    '<div id="bf-docs"></div>' +
+    '<button type="button" class="btn ghost sm" id="bf-add" style="margin-top:8px">' + ic('plus', 13) + ' Tambah Dokumen</button>' +
+    '<label style="margin-top:14px">Catatan</label>' +
+    '<input type="text" name="note" placeholder="Catatan opsional…">' +
+    '<div class="m-actions">' +
+      '<button type="button" class="btn ghost" data-close>Batal</button>' +
+      '<button type="submit" class="btn primary">' + ic('check', 15) + ' Simpan &amp; Cetak</button>' +
+    '</div></form>',
+    { wide: true }
+  );
+
+  const body = $('#bf-docs', ov);
+  function addRow() {
+    body.insertAdjacentHTML('beforeend', bastdDocRow());
+    const row = body.lastElementChild;
+    row.querySelector('[data-dr-del]').addEventListener('click', () => {
+      row.remove();
+      if (!body.children.length) addRow();
+    });
+  }
+  $('#bf-add', ov).addEventListener('click', addRow);
+  addRow();
+
+  /* preview pembeli saat unit dipilih */
+  const buyerBox = $('#bf-buyer', ov);
+  function showBuyer() {
+    const sel = $('[name="unitId"]', f0());
+    const u = units.find((x) => x.id === sel.value);
+    if (!u) { buyerBox.textContent = 'Pembeli: —'; return; }
+    const inv = invoices.find((i) => i.unitId === u.id);
+    buyerBox.textContent = 'Pembeli: ' + (inv && inv.buyer ? inv.buyer.name : '—') +
+      (inv && inv.date ? ' · Tgl jual ' + fmtDate(inv.date) : '');
+  }
+  const f0 = () => $('#bf-form', ov);
+  f0().unitId.addEventListener('change', showBuyer);
+  showBuyer();
+
+  $('#bf-form', ov).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const items = Array.from(body.querySelectorAll('.doc-grid-row')).map((r) => ({
+      key: r.querySelector('.bf-key').value,
+      number: r.querySelector('.bf-num').value.trim()
+    })).filter((x) => x.number || DOC_LIST.some(([k]) => k === x.key));
+    try {
+      const r = await API.post('/bastds', { unitId: f.unitId.value, date: f.date.value, items, note: f.note.value.trim() });
+      closeModal(ov);
+      toast('BASTD ' + r.bastd.number + ' tersimpan' +
+        (r.bastd.type.includes('bpkb') ? ' — status BPKB otomatis SIAP ✅' : ''), 'ok');
+      go(S.page);
+      setTimeout(() => printBastd(r.bastd), 350);
+    } catch (err) {
+      showFieldErrors(ov, err.data && err.data.errors, $('#bf-err', ov));
+      if (!err.data || !err.data.errors) toast(err.message, 'err');
+    }
+  });
+}
+
+/* ---------- Cetak BASTD ---------- */
+function printBastd(d) {
+  const s = d.snapshot;
+  const itemRows = d.items.map((it, idx) =>
+    '<tr><td style="text-align:center;width:46px">' + (idx + 1) + '</td>' +
+    '<td><b>' + esc(DOC_LABEL[it.key] || it.key) + '</b></td>' +
+    '<td class="num">' + esc(it.number || '—') + '</td></tr>').join('');
+
+  const ov = document.createElement('div');
+  ov.id = 'print-overlay';
+  ov.innerHTML =
+    '<div class="print-bar">' +
+      '<button class="btn yellow sm" id="pb-print">' + ic('printer', 15) + ' Cetak</button>' +
+      '<button class="btn ghost sm" style="color:#fff;border-color:rgba(255,255,255,.3)" id="pb-close">' + ic('x', 15) + ' Tutup</button>' +
+    '</div>' +
+    '<div class="invoice-sheet bastd-sheet">' +
+      '<div class="inv-head">' +
+        '<div class="inv-brand"><div class="logo-badge">' + LOGO_SVG + '</div><div>' +
+          '<h4>' + esc(SHOP.name) + '</h4><p>' + esc(SHOP.tagline) + '<br>' + esc(SHOP.addr) + '<br>' + esc(SHOP.phone) + '</p></div></div>' +
+        '<div class="inv-title"><div class="word">BASTD</div>' +
+          '<div class="no">' + esc(d.number) + '</div>' +
+          '<div class="dt">Tanggal: ' + fmtDate(d.date || d.createdAt) + '</div></div>' +
+      '</div>' +
+      '<div class="inv-strip"></div>' +
+      '<div class="bastd-title">' +
+        '<h2>BERITA ACARA SERAH TERIMA DOKUMEN</h2>' +
+        '<p>Pada hari ini tanggal sebagaimana tercantum di atas, kami yang bertanda tangan di bawah ini<br>' +
+        'menyatakan telah melakukan serah terima dokumen kepemilikan kendaraan dengan rincian sebagai berikut:</p>' +
+      '</div>' +
+      '<div class="inv-meta" style="margin-top:18px">' +
+        '<div class="blk"><div class="h">Pihak Pertama (Menyerahkan)</div><div class="n">' + esc(SHOP.name) + '</div>' +
+          '<p>' + esc(SHOP.addr) + '<br>' + esc(SHOP.phone) + '<br>Perwakilan: <b>' + esc(d.createdBy || '—') + '</b></p></div>' +
+        '<div class="blk"><div class="h">Pihak Kedua (Menerima)</div><div class="n">' + esc(s.buyerName) + '</div>' +
+          '<p>' + esc(s.buyerAddress || '—') + (s.buyerPhone ? '<br>Telp: ' + esc(s.buyerPhone) : '') + '</p></div>' +
+      '</div>' +
+      '<table class="inv-items" style="margin-top:6px">' +
+        '<thead><tr><th colspan="2">Identitas Kendaraan</th></tr></thead><tbody>' +
+        '<tr><td style="width:42%">Merek / Type</td><td><b>' + esc(s.brand) + '</b> / ' + esc(s.unitName) + '</td></tr>' +
+        '<tr><td>Tahun &amp; Warna</td><td>' + s.year + ' · ' + esc(s.color || '-') + '</td></tr>' +
+        '<tr><td>Nomor Polisi</td><td><b>' + esc(s.nopol || '—') + '</b></td></tr>' +
+        '<tr><td>Nomor Rangka</td><td class="num">' + esc(s.noRangka || '—') + '</td></tr>' +
+        '<tr><td>Nomor Mesin</td><td class="num">' + esc(s.noMesin || '—') + '</td></tr>' +
+      '</tbody></table>' +
+      '<label style="margin-top:20px;color:#33475b;font-weight:800;font-size:.85rem">DOKUMEN YANG DISERAHKAN:</label>' +
+      '<table class="inv-items"><thead><tr><th style="width:46px;text-align:center">No</th><th>Jenis Dokumen</th><th>Nomor / Keterangan</th></tr></thead>' +
+      '<tbody>' + itemRows + '</tbody></table>' +
+      '<div class="inv-note" style="margin-top:18px;line-height:1.7">Demikian Berita Acara Serah Terima Dokumen ini dibuat dengan sebenarnya, ' +
+        'dokumen diserahkan dalam keadaan <b>lengkap dan baik</b> serta tanpa paksaan dari pihak manapun.' +
+        (d.note ? '<br>Catatan: ' + esc(d.note) : '') + '</div>' +
+      '<div class="inv-signs">' +
+        '<div class="sg"><small>Pihak Pertama — Menyerahkan,</small><div class="line">( ' + esc(d.createdBy || SHOP.name) + ' )</div></div>' +
+        '<div class="sg"><small>Pihak Kedua — Menerima,</small><div class="line">( ' + esc(s.buyerName) + ' )</div></div>' +
+      '</div>' +
+      '<div class="inv-foot"><span>' + esc(SHOP.name) + ' — ' + esc(SHOP.tagline) + '</span><span>' + esc(SHOP.phone) + '</span></div>' +
+    '</div>';
+
+  document.body.classList.add('printing');
+  document.body.appendChild(ov);
+  $('#pb-print', ov).addEventListener('click', () => window.print());
+  $('#pb-close', ov).addEventListener('click', () => {
+    ov.remove();
+    if (!$('#print-overlay')) document.body.classList.remove('printing');
+  });
+}
 document.addEventListener('DOMContentLoaded', init);

@@ -47,8 +47,9 @@ function load() {
       customers: seed.customers || [],
       units: seed.units,
       invoices: seed.invoices,
+      bastds: seed.bastds || [],
       sessions: {},
-      seq: { user: 5, unit: 7, inv: 3, cost: 21 }
+      seq: { user: 5, unit: 7, inv: 3, cost: 21, bastd: 2 }
     };
     save();
     console.log('[db] db.json belum ada — dibuat dari seed (' + cache.units.length + ' unit, ' + cache.users.length + ' user)');
@@ -63,6 +64,8 @@ function load() {
 
   if (!cache.customers) cache.customers = [];
   if (!cache.logs) cache.logs = [];
+  if (!cache.bastds) cache.bastds = [];
+  if (cache.seq && !cache.seq.bastd) cache.seq.bastd = 1;
   autoBackup();
 
   /* bersihkan sesi kadaluarsa */

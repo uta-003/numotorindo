@@ -447,6 +447,52 @@ function serializeInvoice(i) {
     sisa: Math.max(0, total - paid), lunas: total > 0 && paid >= total });
 }
 
+/* ---------- BASTD (Berita Acara Serah Terima Dokumen) ---------- */
+const BASTD_KEYS = {
+  stnk: 'STNK',
+  bpkb: 'BPKB',
+  faktur: 'Faktur Kendaraan',
+  formA: 'Form A',
+  ktp: 'Fotokopi KTP',
+  lainnya: 'Dokumen Lainnya'
+};
+
+function nextBastdNumber(dateISO) {
+  const d = db.load();
+  const n = d.seq.bastd ? d.seq.bastd++ : (d.seq.bastd = 1);
+  const dt = dateISO ? new Date(dateISO + 'T00:00:00') : new Date();
+  return 'BASTD/' + dt.getFullYear() + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' +
+    String(n).padStart(4, '0');
+}
+
+function validateBastd(raw) {
+  const errors = {}, out = {};
+  const date = String(raw.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) {
+    errors.date = 'Format tanggal tidak valid';
+  } else out.date = date;
+
+  const items = Array.isArray(raw.items) ? raw.items : [];
+  const clean = [], seen = {};
+  let badKey = false;
+  items.forEach((it) => {
+    const key = String((it && it.key) || '').trim().toLowerCase();
+    if (!BASTD_KEYS[key]) { badKey = true; return; }
+    if (seen[key]) return;
+    seen[key] = 1;
+    clean.push({ key: key, number: String((it && it.number) || '').trim().slice(0, 80) });
+  });
+  if (badKey) errors.items = 'Ada jenis dokumen yang tidak dikenal';
+  else if (!clean.length) errors.items = 'Pilih minimal satu dokumen yang diserahkan';
+  else out.items = clean;
+
+  const note = String(raw.note || '').trim();
+  if (note.length > 300) errors.note = 'Catatan maksimal 300 karakter';
+  else out.note = note;
+
+  return Object.keys(errors).length ? { ok: false, errors } : { ok: true, out };
+}
+
 function validateInvoice(raw) {
   const errors = {}, out = {};
   const s = (k) => (typeof raw[k] === 'string' ? raw[k].trim() : raw[k] == null ? '' : String(raw[k]).trim());
@@ -1076,6 +1122,73 @@ async function handleApi(req, res, url) {
           delete unit.soldAt;
         }
         db.save();
+        return json(res, 200, { ok: true });
+      }
+      return fail(res, 405, 'Metode tidak didukung');
+    }
+
+    /* ---------- /api/bastds (Berita Acara Serah Terima Dokumen) ---------- */
+    if (seg[0] === 'bastds') {
+      if (!(me.role === 'admin' || me.role === 'owner' || me.role === 'sales')) {
+        return fail(res, 403, 'Tidak diizinkan mengakses BASTD');
+      }
+      if (!Array.isArray(data.bastds)) data.bastds = [];
+
+      if (m === 'GET' && !seg[1]) {
+        let list = [...data.bastds].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        const q = (url.searchParams.get('q') || '').toLowerCase().trim();
+        if (q) list = list.filter((x) => [x.number, x.snapshot.unitName, x.snapshot.buyerName]
+          .join(' ').toLowerCase().includes(q));
+        return json(res, 200, list);
+      }
+
+      if (m === 'POST' && !seg[1]) {
+        const b = await readBody(req);
+        const unit = data.units.find((x) => x.id === b.unitId);
+        if (!unit) return fail(res, 400, 'Pilih unit terlebih dahulu', { unitId: 'Unit wajib dipilih' });
+        const inv = data.invoices.find((i) => i.unitId === unit.id);
+        if (!inv) return fail(res, 400, 'Unit ini belum terjual — BASTD dibuat setelah ada invoice', { unitId: 'Belum ada pembeli' });
+        const v = validateBastd(b);
+        if (!v.ok) return fail(res, 400, 'Validasi gagal', v.errors);
+
+                const doc = {
+          id: db.nextId('basdid', 'basd'), /* counter id terpisah agar nomor dokumen tidak melompat */
+          number: nextBastdNumber(v.out.date),
+          date: v.out.date,
+          unitId: unit.id,
+          customerId: inv.customerId || null,
+          type: v.out.items.map((i) => i.key),
+          items: v.out.items,
+          snapshot: {
+            unitCode: unit.code, unitName: unit.name, brand: unit.brand, year: unit.year,
+            color: unit.color || '', nopol: unit.nopol || '',
+            noRangka: unit.noRangka || '', noMesin: unit.noMesin || '',
+            buyerName: inv.buyer ? inv.buyer.name : '', buyerPhone: inv.buyer ? inv.buyer.phone : '',
+            buyerAddress: inv.buyer ? inv.buyer.address : ''
+          },
+          note: v.out.note,
+          createdBy: me.name || me.username, createdById: me.id,
+          createdAt: new Date().toISOString()
+        };
+        data.bastds.push(doc);
+
+        /* BPKB diserahkan -> otomatis tandai SIAP */
+        if (v.out.items.some((i) => i.key === 'bpkb') && unit.bpkbDays) {
+          unit.bpkbReady = true;
+          unit.bpkbReadyAt = v.out.date;
+        }
+        db.save();
+        logAct(me, 'bastd-buat', doc.number + ' · ' + unit.code + ' · ' + doc.type.join('/').toUpperCase());
+        return json(res, 201, { bastd: doc });
+      }
+
+      if (seg[1] && m === 'DELETE') {
+        if (me.role !== 'admin') return fail(res, 403, 'Hanya admin yang dapat menghapus BASTD');
+        const bi = data.bastds.findIndex((x) => x.id === seg[1]);
+        if (bi < 0) return fail(res, 404, 'BASTD tidak ditemukan');
+        const rem = data.bastds.splice(bi, 1)[0];
+        db.save();
+        logAct(me, 'bastd-hapus', rem.number);
         return json(res, 200, { ok: true });
       }
       return fail(res, 405, 'Metode tidak didukung');

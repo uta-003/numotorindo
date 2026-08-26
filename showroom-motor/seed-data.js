@@ -154,7 +154,27 @@ const invoices = [
   }
 ];
 
-module.exports = { users, customers, units, invoices };
+const bastds = [{
+  id: 'bastd-1', number: 'BASTD/2026/07/0001', date: '2026-07-01',
+  unitId: 'unit-2', customerId: 'cust-1',
+  type: ['stnk', 'bpkb'],
+  items: [
+    { key: 'stnk', number: 'D 5678 XYZ · masa 06-2027' },
+    { key: 'bpkb', number: 'BPKB B 05678 XYZ · hal 1-4' }
+  ],
+  snapshot: {
+    unitCode: 'UM-0002', unitName: 'Yamaha NMAX 155 Connected ABS', brand: 'Yamaha',
+    year: 2021, color: 'Biru', nopol: 'B 5678 XYZ',
+    noRangka: 'MHJXB53C0KA123456', noMesin: 'B5RE-9876543',
+    buyerName: 'Hendra Wijaya', buyerPhone: '0812-3344-5566',
+    buyerAddress: 'Jl. Kenanga No. 21, Depok'
+  },
+  note: '',
+  createdBy: 'Rina Amelia (Sales)', createdById: 'user-3',
+  createdAt: '2026-07-01T03:00:00.000Z'
+}];
+
+module.exports = { users, customers, units, invoices, bastds };
 
 /* Enrichment: nomor rangka/mesin, jatuh tempo pajak & kelengkapan dokumen */
 (function enrichUnits() {

@@ -547,6 +547,24 @@ html[data-theme="sakura"]{
   .theme-card { padding:16px 8px; }
 }
 
+/* ---------- BASTD ---------- */
+.badge.doc-tag { background: var(--tint-blue); color: var(--navy); }
+.bastd-docs { display:flex; gap:5px; flex-wrap:wrap; }
+.bastd-title { text-align:center; margin-top:20px; }
+.bastd-title h2 {
+  color: var(--navy); font-size:1.22rem; letter-spacing:.06em;
+  text-transform:uppercase; margin-bottom:10px;
+}
+.bastd-title p { font-size:.85rem; color:#55677a; line-height:1.65; margin:0 auto; max-width:600px; }
+.doc-grid-row { display:grid; grid-template-columns:160px 1fr auto; gap:8px; align-items:start; margin-bottom:8px; }
+.doc-grid-row select, .doc-grid-row input { background:#fff; }
+@media (max-width:900px){
+  .doc-grid-row { grid-template-columns:1fr auto; }
+  .doc-grid-row .bf-key { grid-column:1 / -1; }
+}
+html[data-theme] .doc-grid-row select,
+html[data-theme] .doc-grid-row input { background:var(--card); color:var(--text); border-color:var(--line); }
+
 /* ---------- Modal ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 100; background: rgba(2, 26, 40, .55);
