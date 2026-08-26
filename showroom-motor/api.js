@@ -10,7 +10,10 @@
 'use strict';
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const db = require('./db');
+const { PHOTOS_DIR } = db;
 const { hashPassword, verifyPassword } = require('./hash');
 
 const ROLES = ['admin', 'owner', 'sales', 'mekanik'];
@@ -36,14 +39,15 @@ function fail(res, status, message, errors) {
   return json(res, status, errors ? { message, errors } : { message });
 }
 
-function readBody(req) {
+function readBody(req, maxKB) {
+  const cap = Math.max(10, maxKB || 200) * 1024;
   return new Promise((resolve, reject) => {
     let size = 0;
     const parts = [];
     req.on('data', (ch) => {
       size += ch.length;
-      if (size > 200 * 1024) {
-        reject(new Error('Payload terlalu besar (maks 200KB)'));
+      if (size > cap) {
+        reject(new Error('Payload terlalu besar (maks ' + Math.round(cap / 1024) + 'KB)'));
         req.destroy();
         return;
       }
@@ -93,7 +97,31 @@ function perms(u) {
 }
 
 function publicUser(u) {
-  return { id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active, createdAt: u.createdAt };
+  return { id: u.id, username: u.username, name: u.name, role: u.role, active: !!u.active,
+    komisiPersen: Number(u.komisiPersen) || 0, targetBulanan: Number(u.targetBulanan) || 0,
+    createdAt: u.createdAt };
+}
+
+/* ---------- Audit log & proteksi login ---------- */
+const loginFails = new Map();
+const LOGIN_MAX_FAIL = 5;
+const LOGIN_LOCK_MS = 5 * 60 * 1000;
+
+function logAct(me, action, detail) {
+  try {
+    const d = db.load();
+    if (!Array.isArray(d.logs)) d.logs = [];
+    d.logs.push({
+      id: 'log-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      at: new Date().toISOString(),
+      user: me ? me.username : '-',
+      role: me ? me.role : '-',
+      action: action,
+      detail: String(detail == null ? '' : detail).slice(0, 300)
+    });
+    if (d.logs.length > 600) d.logs.splice(0, d.logs.length - 600);
+    db.save();
+  } catch (e) { /* jangan ganggu respons utama */ }
 }
 
 /* ---------- Kalkulasi modal & laba/rugi ---------- */
@@ -295,10 +323,15 @@ function validateCost(raw) {
     out.date = new Date().toISOString().slice(0, 10);
   }
 
+  v = s('pajakDue');
+  if (v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(new Date(v).getTime())) errors.pajakDue = 'Format tanggal tidak valid'; else out.pajakDue = v; }
+
+  v = s('noRangka'); if (v) { if (v.length > 40) errors.noRangka = 'Nomor rangka maksimal 40 karakter'; else out.noRangka = v.toUpperCase(); }
+  v = s('noMesin'); if (v) { if (v.length > 40) errors.noMesin = 'Nomor mesin maksimal 40 karakter'; else out.noMesin = v.toUpperCase(); }
+
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, out };
 }
 
-/* Validator satu item biaya tanpa field type (dipakai array biaya di form) */
 function validateCostItem(raw) {
   const errors = {}, out = {};
   const desc = typeof raw.desc === 'string' ? raw.desc.trim() : '';
@@ -367,8 +400,51 @@ function validateUser(raw, opts) {
   }
 
   if (raw.active != null) out.active = !!raw.active;
+  if (raw.komisiPersen != null && raw.komisiPersen !== '') {
+    const k = parseInt(String(raw.komisiPersen).replace(/[^0-9.]/g, ''), 10);
+    if (isNaN(k) || k < 0 || k > 100) errors.komisiPersen = 'Komisi harus 0–100';
+    else out.komisiPersen = k;
+  }
+  if (raw.targetBulanan != null && raw.targetBulanan !== '') {
+    const t = parseInt(String(raw.targetBulanan).replace(/[^0-9]/g, ''), 10);
+    if (isNaN(t) || t < 0) errors.targetBulanan = 'Target tidak valid';
+    else out.targetBulanan = t;
+  }
 
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, out };
+}
+
+function validateCustomer(raw) {
+  const errors = {}, out = {};
+  const name = String(raw.name || '').trim();
+  if (name.length < 3) errors.name = 'Nama pelanggan minimal 3 karakter';
+  else if (name.length > 80) errors.name = 'Nama maksimal 80 karakter';
+  else out.name = name;
+
+  const phone = String(raw.phone || '').trim().replace(/\s+/g, ' ');
+  if (phone) {
+    if (!/^[\d+\-() ]{5,20}$/.test(phone)) errors.phone = 'Nomor telepon tidak valid';
+    else out.phone = phone;
+  }
+
+  const addr = String(raw.address || '').trim();
+  if (addr.length > 200) errors.address = 'Alamat maksimal 200 karakter';
+  else out.address = addr;
+
+  const notes = String(raw.notes || '').trim();
+  if (notes.length > 300) errors.notes = 'Catatan maksimal 300 karakter';
+  else out.notes = notes;
+
+  return Object.keys(errors).length ? { ok: false, errors } : { ok: true, out };
+}
+
+/* sertakan ringkasan pembayaran pada invoice */
+function serializeInvoice(i) {
+  const pays = Array.isArray(i.payments) ? i.payments : [];
+  const paid = pays.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const total = Number(i.total) || 0;
+  return Object.assign({}, i, { payments: pays, paid: paid,
+    sisa: Math.max(0, total - paid), lunas: total > 0 && paid >= total });
 }
 
 function validateInvoice(raw) {
@@ -453,8 +529,21 @@ async function handleApi(req, res, url) {
         const uname = String(b.username || '').trim().toLowerCase();
         const pw = String(b.password || '');
         if (!uname || !pw) return fail(res, 400, 'Username dan password wajib diisi');
+        const ip = req.socket.remoteAddress || '-';
+        const failKey = uname + '|' + ip;
+        const rec = loginFails.get(failKey);
+        if (rec && rec.count >= LOGIN_MAX_FAIL && Date.now() - rec.last < LOGIN_LOCK_MS) {
+          const sisaDetik = Math.ceil((LOGIN_LOCK_MS - (Date.now() - rec.last)) / 1000);
+          return fail(res, 429, 'Terlalu banyak percobaan gagal. Coba lagi dalam ' + sisaDetik + ' detik.');
+        }
         const u = data.users.find((x) => x.username.toLowerCase() === uname);
-        if (!u || !verifyPassword(pw, u.salt, u.passHash)) return fail(res, 401, 'Username atau password salah');
+        if (!u || !verifyPassword(pw, u.salt, u.passHash)) {
+          const c = ((rec && rec.count) || 0) + 1;
+          loginFails.set(failKey, { count: c, last: Date.now() });
+          if (c >= LOGIN_MAX_FAIL) logAct(null, 'login-terkunci', 'Username "' + uname + '" dikunci ' + LOGIN_MAX_FAIL + 'x gagal');
+          return fail(res, 401, 'Username atau password salah');
+        }
+        loginFails.delete(failKey);
         if (!u.active) return fail(res, 403, 'Akun Anda dinonaktifkan. Hubungi admin.');
         const tok = crypto.randomBytes(24).toString('hex');
         data.sessions[tok] = { userId: u.id, createdAt: new Date().toISOString() };
@@ -467,6 +556,19 @@ async function handleApi(req, res, url) {
       if (seg[1] === 'logout' && m === 'POST') {
         const tok = tokenOf(req);
         if (tok && data.sessions[tok]) { delete data.sessions[tok]; db.save(); }
+        return json(res, 200, { ok: true });
+      }
+      if (seg[1] === 'change-password' && m === 'POST') {
+        const b = await readBody(req);
+        const oldPw = String(b.oldPassword || ''), newPw = String(b.newPassword || '');
+        if (!verifyPassword(oldPw, me0.salt, me0.passHash)) {
+          return fail(res, 400, 'Password lama salah', { oldPassword: 'Password lama salah' });
+        }
+        if (newPw.length < 5) return fail(res, 400, 'Password baru terlalu pendek', { newPassword: 'Minimal 5 karakter' });
+        const { salt, hash } = hashPassword(newPw);
+        me0.salt = salt; me0.passHash = hash;
+        db.save();
+        logAct(me0, 'password-ubah', 'User mengganti password sendiri');
         return json(res, 200, { ok: true });
       }
       return fail(res, 404, 'Endpoint tidak ditemukan');
@@ -514,6 +616,8 @@ async function handleApi(req, res, url) {
         if (v.out.name) target.name = v.out.name;
         if (v.out.role) target.role = v.out.role;
         if (v.out.active != null) target.active = v.out.active;
+        if (v.out.komisiPersen !== undefined) target.komisiPersen = v.out.komisiPersen;
+        if (v.out.targetBulanan !== undefined) target.targetBulanan = v.out.targetBulanan;
         if (v.out.password) {
           const { salt, hash } = hashPassword(v.out.password);
           target.salt = salt; target.passHash = hash;
@@ -530,12 +634,67 @@ async function handleApi(req, res, url) {
       return fail(res, 405, 'Metode tidak didukung');
     }
 
+    /* ---------- /api/customers ---------- */
+    if (seg[0] === 'customers') {
+      const canCust = me.role === 'admin' || me.role === 'owner' || me.role === 'sales';
+      if (!canCust) return fail(res, 403, 'Tidak diizinkan mengakses data pelanggan');
+      if (!data.customers) data.customers = [];
+
+      if (m === 'GET' && !seg[1]) {
+        let list = [...data.customers].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        const q = (url.searchParams.get('q') || '').toLowerCase().trim();
+        if (q) list = list.filter((c) => [c.name, c.phone, c.address].join(' ').toLowerCase().includes(q));
+        return json(res, 200, list.map((c) => {
+          const invs = data.invoices.filter((i) => i.customerId === c.id);
+          return Object.assign({}, c, {
+            totalTransaksi: invs.length,
+            omzet: invs.reduce((s, i) => s + (Number(i.total) || 0), 0)
+          });
+        }));
+      }
+
+      if (m === 'POST' && !seg[1]) {
+        const b = await readBody(req);
+        const v = validateCustomer(b);
+        if (!v.ok) return fail(res, 400, 'Validasi gagal', v.errors);
+        const c = Object.assign({ id: db.nextId('customer', 'cust'), createdAt: new Date().toISOString() }, v.out);
+        data.customers.push(c); db.save();
+        logAct(me, 'pelanggan-tambah', c.name);
+        return json(res, 201, c);
+      }
+
+      const cIdx = data.customers.findIndex((x) => x.id === seg[1]);
+      if (cIdx < 0) return fail(res, 404, 'Pelanggan tidak ditemukan');
+      const cust = data.customers[cIdx];
+
+      if (m === 'PUT') {
+        const b = await readBody(req);
+        const v = validateCustomer(b);
+        if (!v.ok) return fail(res, 400, 'Validasi gagal', v.errors);
+        Object.assign(cust, v.out); db.save();
+        logAct(me, 'pelanggan-ubah', cust.name);
+        return json(res, 200, cust);
+      }
+
+      if (m === 'DELETE') {
+        const used = data.invoices.some((i) => i.customerId === cust.id);
+        if (used) return fail(res, 400, 'Pelanggan memiliki riwayat invoice dan tidak bisa dihapus');
+        data.customers.splice(cIdx, 1); db.save();
+        logAct(me, 'pelanggan-hapus', cust.name);
+        return json(res, 200, { ok: true });
+      }
+      return fail(res, 405, 'Metode tidak didukung');
+    }
+
     /* ---------- /api/units ---------- */
     if (seg[0] === 'units') {
       if (m === 'GET' && !seg[1]) {
         let list = [...data.units].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         const q = (url.searchParams.get('q') || '').toLowerCase().trim();
         const st = url.searchParams.get('status');
+        const ar = url.searchParams.get('archived');
+        if (ar === '1') list = list.filter((u2) => u2.archived);
+        else if (ar !== 'all') list = list.filter((u2) => !u2.archived);
         if (st && UNIT_STATUS.includes(st)) list = list.filter((u2) => u2.status === st);
         if (q) list = list.filter((u2) =>
           [u2.code, u2.name, u2.brand, u2.nopol, String(u2.year || '')].join(' ').toLowerCase().includes(q));
@@ -576,7 +735,7 @@ async function handleApi(req, res, url) {
         const b = await readBody(req);
         const v = validateUnit(b, true);
         if (!v.ok) return fail(res, 400, 'Validasi gagal', v.errors);
-        ['name', 'brand', 'type', 'color', 'transmisi', 'nopol', 'notes', 'bpkbStart'].forEach((k) => {
+        ['name', 'brand', 'type', 'color', 'transmisi', 'nopol', 'notes', 'bpkbStart', 'noRangka', 'noMesin', 'pajakDue'].forEach((k) => {
           if (v.out[k] !== undefined && v.out[k] !== null) u[k] = v.out[k];
         });
         ['year', 'km', 'cc', 'purchaseCost', 'sellPrice', 'purchaseDate', 'bpkbDays'].forEach((k) => {
@@ -632,6 +791,28 @@ async function handleApi(req, res, url) {
           if (u.bpkbReady) u.bpkbReadyAt = isoDay(new Date());
           else delete u.bpkbReadyAt;
         }
+        if (typeof b.archived === 'boolean') {
+          if (me.role !== 'admin') return fail(res, 403, 'Hanya admin yang dapat mengarsipkan unit');
+          u.archived = b.archived;
+        }
+        if (b.pajakDue !== undefined) {
+          if (!(me.role === 'admin' || me.role === 'owner' || me.role === 'sales')) {
+            return fail(res, 403, 'Tidak diizinkan mengubah jatuh tempo pajak');
+          }
+          const pd = String(b.pajakDue || '').trim();
+          if (pd === '') u.pajakDue = '';
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(pd) && !isNaN(new Date(pd).getTime())) u.pajakDue = pd;
+          else return fail(res, 400, 'Tanggal pajak tidak valid', { pajakDue: 'Format tanggal tidak valid' });
+        }
+        if (b.docs && typeof b.docs === 'object') {
+          if (!(me.role === 'admin' || me.role === 'owner' || me.role === 'sales')) {
+            return fail(res, 403, 'Tidak diizinkan mengubah kelengkapan dokumen');
+          }
+          if (!u.docs) u.docs = {};
+          ['stnk', 'faktur', 'formA'].forEach((k) => {
+            if (typeof b.docs[k] === 'boolean') u.docs[k] = b.docs[k];
+          });
+        }
         db.save();
         return json(res, 200, serializeUnit(u, me));
       }
@@ -681,6 +862,77 @@ async function handleApi(req, res, url) {
         return fail(res, 405, 'Metode tidak didukung');
       }
 
+            /* ---------- duplikat & foto unit ---------- */
+      if (seg[2] === 'duplicate' && m === 'POST') {
+        if (!P.manageUnits) return fail(res, 403, 'Anda tidak memiliki izin menduplikasi unit');
+        const nid = db.nextId('unit', 'unit');
+        const cp = JSON.parse(JSON.stringify(u));
+        cp.id = nid;
+        cp.code = 'UM-' + String(parseInt(nid.split('-')[1], 10)).padStart(4, '0');
+        cp.status = 'tersedia'; cp.archived = false;
+        delete cp.invoiceId; delete cp.soldAt;
+        cp.bpkbReady = false; delete cp.bpkbReadyAt;
+        cp.photos = [];
+        cp.nopol = '';
+        cp.repairCosts = (u.repairCosts || []).map((c) => Object.assign({}, c, { id: db.nextId('cost', 'cost') }));
+        cp.docCosts = (u.docCosts || []).map((c) => Object.assign({}, c, { id: db.nextId('cost', 'cost') }));
+        cp.createdAt = new Date().toISOString();
+        data.units.push(cp); db.save();
+        logAct(me, 'unit-duplikat', cp.code + ' (dari ' + u.code + ')');
+        return json(res, 201, serializeUnit(cp, me));
+      }
+
+      if (seg[2] === 'photos') {
+        const canPhoto = me.role !== 'mekanik';
+        if (!canPhoto) return fail(res, 403, 'Tidak diizinkan mengelola foto');
+
+        if (m === 'POST' && !seg[3]) {
+          const b = await readBody(req, 1600);
+          const raw64 = String(b.data || '');
+          const comma = raw64.indexOf(',');
+          const buf = Buffer.from(comma >= 0 ? raw64.slice(comma + 1) : raw64, 'base64');
+          if (!buf.length) return fail(res, 400, 'File foto kosong');
+          if (buf.length > 1024 * 1024) return fail(res, 400, 'Ukuran foto maksimal 1 MB');
+          let ext = '.jpg';
+          const nm = String(b.filename || 'foto.jpg').toLowerCase();
+          [['jpeg','.jpg'],['jpg','.jpg'],['png','.png'],['webp','.webp']].forEach(([k, v]) => {
+            if (nm.endsWith('.' + k)) ext = v;
+          });
+          fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+          const fname = u.id + '-' + Date.now() + ext;
+          fs.writeFileSync(path.join(PHOTOS_DIR, fname), buf);
+          if (!Array.isArray(u.photos)) u.photos = [];
+          const ph = { id: db.nextId('photo', 'ph'), url: '/photos/' + fname,
+            name: String(b.filename || fname).slice(0, 120), addedAt: new Date().toISOString() };
+          u.photos.push(ph); db.save();
+          logAct(me, 'foto-upload', u.code + ' · ' + ph.name);
+          return json(res, 201, { photo: ph, unit: serializeUnit(u, me) });
+        }
+
+        if (seg[3] === 'cover' && m === 'POST') {
+          const b = await readBody(req);
+          const i = (u.photos || []).findIndex((x) => x.id === b.photoId);
+          if (i < 0) return fail(res, 404, 'Foto tidak ditemukan');
+          const ph = u.photos.splice(i, 1)[0];
+          u.photos.unshift(ph); db.save();
+          return json(res, 200, serializeUnit(u, me));
+        }
+
+        if (seg[3] && m === 'DELETE') {
+          const i = (u.photos || []).findIndex((x) => x.id === seg[3]);
+          if (i < 0) return fail(res, 404, 'Foto tidak ditemukan');
+          const ph = u.photos.splice(i, 1)[0];
+          try {
+            const base = path.basename(decodeURIComponent(ph.url || ''));
+            if (base.startsWith(u.id + '-')) fs.unlinkSync(path.join(PHOTOS_DIR, base));
+          } catch (e) {}
+          db.save();
+          logAct(me, 'foto-hapus', u.code);
+          return json(res, 200, serializeUnit(u, me));
+        }
+        return fail(res, 405, 'Metode tidak didukung');
+      }
+
       return fail(res, 404, 'Endpoint tidak ditemukan');
     }
 
@@ -694,7 +946,7 @@ async function handleApi(req, res, url) {
         const q = (url.searchParams.get('q') || '').toLowerCase().trim();
         if (q) list = list.filter((i) => [i.number, i.buyer && i.buyer.name, i.snapshot && i.snapshot.name]
           .join(' ').toLowerCase().includes(q));
-        return json(res, 200, list);
+        return json(res, 200, list.map(serializeInvoice));
       }
 
       if (m === 'POST' && !seg[1]) {
@@ -712,6 +964,30 @@ async function handleApi(req, res, url) {
         if (discount > sellPrice) {
           return fail(res, 400, 'Diskon melebihi harga jual', { discount: 'Maksimal Rp ' + sellPrice.toLocaleString('id-ID') });
         }
+        /* pelanggan: pakai yang ada atau daftarkan otomatis */
+        if (!Array.isArray(data.customers)) data.customers = [];
+        let cust = null;
+        if (b.customerId) cust = data.customers.find((c) => c.id === b.customerId);
+        if (!cust && v.out.buyerName) {
+          cust = data.customers.find((c) =>
+            c.name.toLowerCase() === v.out.buyerName.toLowerCase() ||
+            (v.out.buyerPhone && c.phone && c.phone === v.out.buyerPhone));
+          if (!cust) {
+            cust = { id: db.nextId('customer', 'cust'), name: v.out.buyerName,
+              phone: v.out.buyerPhone || '', address: v.out.buyerAddress || '',
+              notes: '', createdAt: now.toISOString() };
+            data.customers.push(cust);
+            logAct(me, 'pelanggan-tambah', '(otomatis dari invoice) ' + cust.name);
+          }
+        }
+
+        /* DP / pembayaran pertama */
+        const invTotal = sellPrice - discount;
+        const dp = parseInt(String(b.dpAmount == null ? '' : b.dpAmount).replace(/[^0-9]/g, ''), 10) || 0;
+        if (dp > 0 && dp > invTotal) {
+          return fail(res, 400, 'DP melebihi total tagihan', { dpAmount: 'Maksimal Rp ' + invTotal.toLocaleString('id-ID') });
+        }
+
         const id = db.nextId('inv', 'inv');
         const now = new Date();
         const inv = {
@@ -719,26 +995,75 @@ async function handleApi(req, res, url) {
           number: 'INV/' + now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' +
             String(parseInt(id.split('-')[1], 10)).padStart(4, '0'),
           unitId: unit.id,
+          customerId: cust ? cust.id : null,
           snapshot: { name: unit.name, brand: unit.brand, year: unit.year, cc: unit.cc, color: unit.color, nopol: unit.nopol },
           buyer: { name: v.out.buyerName, phone: v.out.buyerPhone || '', address: v.out.buyerAddress || '' },
           sellPrice: sellPrice, discount: discount, total: sellPrice - discount,
           paymentMethod: v.out.paymentMethod, date: v.out.date, note: v.out.note,
-          createdBy: me.name || me.username, createdAt: now.toISOString()
+          createdBy: me.name || me.username, createdById: me.id, createdAt: now.toISOString(),
+          payments: []
         };
+        if (dp > 0) {
+          inv.payments.push({ id: db.nextId('pay', 'pay'), date: v.out.date,
+            amount: dp, method: v.out.paymentMethod, note: 'Uang muka (DP)' });
+        }
         data.invoices.push(inv);
         unit.status = 'terjual'; unit.sellPrice = sellPrice;
         unit.invoiceId = inv.id; unit.soldAt = inv.date;
         db.save();
-        return json(res, 201, { invoice: inv, unit: serializeUnit(unit, me) });
+        logAct(me, 'invoice-buat', inv.number + ' · ' + unit.code + ' · Rp ' + inv.total.toLocaleString('id-ID'));
+        return json(res, 201, { invoice: serializeInvoice(inv), unit: serializeUnit(unit, me) });
       }
 
       const invIdx = data.invoices.findIndex((x) => x.id === seg[1]);
       if (invIdx < 0) return fail(res, 404, 'Invoice tidak ditemukan');
       const inv = data.invoices[invIdx];
 
+      /* ---------- pembayaran cicilan / DP ---------- */
+      if (seg[2] === 'payments' || seg[2] === 'payment') {
+        if (!(me.role === 'admin' || me.role === 'sales')) {
+          return fail(res, 403, 'Hanya admin/sales yang dapat mengelola pembayaran');
+        }
+        if (!Array.isArray(inv.payments)) inv.payments = [];
+
+        if (seg[3] && m === 'DELETE') {
+          if (me.role !== 'admin' && me.role !== 'sales') {
+            return fail(res, 403, 'Tidak diizinkan menghapus pembayaran');
+          }
+          const pi = inv.payments.findIndex((x) => x.id === seg[3]);
+          if (pi < 0) return fail(res, 404, 'Pembayaran tidak ditemukan');
+          const rem = inv.payments.splice(pi, 1)[0];
+          db.save();
+          logAct(me, 'bayar-hapus', inv.number + ' · Rp ' + Number(rem.amount).toLocaleString('id-ID'));
+          return json(res, 200, { ok: true, invoice: serializeInvoice(inv) });
+        }
+
+        if (m === 'POST' && !seg[3]) {
+          const b = await readBody(req);
+          const date = String(b.date || '').trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) {
+            return fail(res, 400, 'Tanggal tidak valid', { date: 'Format tanggal tidak valid' });
+          }
+          const amt = parseInt(String(b.amount == null ? '' : b.amount).replace(/[^0-9]/g, ''), 10);
+          if (isNaN(amt) || amt <= 0) return fail(res, 400, 'Nominal tidak valid', { amount: 'Harus angka > 0' });
+          const method = String(b.method || inv.paymentMethod || 'tunai').toLowerCase();
+          if (!PAY_METHODS.includes(method)) return fail(res, 400, 'Metode tidak valid', { method: 'Metode tidak dikenal' });
+          const paidSoFar = inv.payments.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+          const sisa = Math.max(0, (inv.total || 0) - paidSoFar);
+          if (amt > sisa) return fail(res, 400, 'Melebihi sisa tagihan',
+            { amount: 'Sisa hanya Rp ' + sisa.toLocaleString('id-ID') });
+          const pay = { id: db.nextId('pay', 'pay'), date: date, amount: amt,
+            method: method, note: String(b.note || '').slice(0, 200) };
+          inv.payments.push(pay); db.save();
+          logAct(me, 'bayar-tambah', inv.number + ' · Rp ' + amt.toLocaleString('id-ID'));
+          return json(res, 201, { payment: pay, invoice: serializeInvoice(inv) });
+        }
+        return fail(res, 405, 'Metode tidak didukung');
+      }
+
       if (m === 'GET') {
         const unit = data.units.find((x) => x.id === inv.unitId);
-        return json(res, 200, { invoice: inv, unit: unit ? serializeUnit(unit, me) : null });
+        return json(res, 200, { invoice: serializeInvoice(inv), unit: unit ? serializeUnit(unit, me) : null });
       }
 
       if (m === 'DELETE') {
@@ -807,7 +1132,101 @@ async function handleApi(req, res, url) {
             : 0
         });
       }
+
+      /* komisi & target per sales */
+      if (seg[1] === 'commissions' && m === 'GET') {
+        const month = url.searchParams.get('month') || isoMonth(new Date());
+        const invs = data.invoices.filter((i) => (i.date || '').startsWith(month));
+        const unitByInv = {};
+        data.units.forEach((x) => { if (x.invoiceId) unitByInv[x.invoiceId] = x; });
+        const agg = {};
+        invs.forEach((i) => {
+          let uu = data.users.find((x) => x.id === i.createdById);
+          if (!uu) uu = data.users.find((x) => x.name === i.createdBy || x.username === i.createdBy);
+          const key = uu ? uu.id : (i.createdBy || '-');
+          const a = agg[key] = agg[key] || {
+            userId: uu ? uu.id : null,
+            name: uu ? uu.name : (i.createdBy || '(tidak dikenal)'),
+            role: uu ? uu.role : '-',
+            komisiPersen: uu ? (Number(uu.komisiPersen) || 0) : 0,
+            target: uu ? (Number(uu.targetBulanan) || 0) : 0,
+            count: 0, omzet: 0, laba: 0
+          };
+          a.count++;
+          a.omzet += Number(i.total) || 0;
+          const ux = unitByInv[i.id];
+          if (ux) a.laba += calcTotals(ux).profit;
+        });
+        const rows = Object.values(agg);
+        rows.forEach((a) => {
+          a.komisi = Math.round(a.laba * a.komisiPersen) / 100;
+          a.pct = a.target ? Math.round(a.omzet / a.target * 1000) / 10 : null;
+        });
+        rows.sort((x, y) => y.omzet - x.omzet);
+        return json(res, 200, { month: month, rows: rows });
+      }
+
       return fail(res, 404, 'Endpoint tidak ditemukan');
+    }
+
+    /* ---------- audit log ---------- */
+    if (seg[0] === 'logs') {
+      if (!(me.role === 'admin' || me.role === 'owner')) return fail(res, 403, 'Tidak diizinkan melihat log');
+      const lim = Math.min(parseInt(url.searchParams.get('limit') || '80', 10) || 80, 300);
+      const arr = [...(data.logs || [])].sort((a, b) => b.at.localeCompare(a.at)).slice(0, lim);
+      return json(res, 200, arr);
+    }
+
+    /* ---------- export CSV (Excel-compatible) ---------- */
+    if (seg[0] === 'export') {
+      if (!P.viewReports) return fail(res, 403, 'Tidak diizinkan mengekspor laporan');
+      const csvEsc = (v) => { v = String(v == null ? '' : v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      const sendCsv = (name, rows) => {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="' + name + '"');
+        res.end('\uFEFF' + rows.map((r) => r.map(csvEsc).join(';')).join('\r\n'));
+      };
+
+            if ((seg[1] || '').startsWith('units') && m === 'GET') {
+        const rows = [['Kode', 'Nama', 'Merek', 'Tipe', 'Tahun', 'KM', 'CC', 'Warna', 'Nopol', 'No Rangka', 'No Mesin',
+          'Status', 'BPKB Due', 'BPKB Diambil', 'Pajak Due', 'Pembelian', 'Perbaikan', 'Dokumen', 'Total Modal', 'Harga Jual', 'Laba/Rugi']];
+        [...data.units].sort((a, b) => a.code.localeCompare(b.code)).forEach((u) => {
+          const t = calcTotals(u); const bp = calcBpkb(u);
+          rows.push([u.code, u.name, u.brand, u.type, u.year, u.km, u.cc, u.color || '', u.nopol || '',
+            u.noRangka || '', u.noMesin || '', u.status,
+            bp ? bp.due : '', bp && bp.readyAt ? bp.readyAt : '', u.pajakDue || '',
+            t.purchase, t.repair, t.doc, t.modal, t.sellPrice, t.profit]);
+        });
+        sendCsv('stok-unit.csv', rows); return;
+      }
+
+      if ((seg[1] || '').startsWith('invoices') && m === 'GET') {
+        const rows = [['No Invoice', 'Tanggal', 'Pelanggan', 'Unit', 'Nopol', 'Harga', 'Diskon', 'Total', 'Dibayar', 'Sisa', 'Lunas', 'Metode', 'Oleh']];
+        [...data.invoices].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach((i) => {
+          const s = serializeInvoice(i);
+          rows.push([s.number, s.date, s.buyer ? s.buyer.name : '', s.snapshot ? s.snapshot.name : '',
+            s.snapshot ? s.snapshot.nopol : '', s.sellPrice, s.discount, s.total,
+            s.paid, s.sisa, s.lunas ? 'Ya' : 'Belum', s.paymentMethod, s.createdBy]);
+        });
+        sendCsv('invoice.csv', rows); return;
+      }
+
+      if ((seg[1] || '').startsWith('profit') && m === 'GET') {
+        const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+        let soldList = data.units.filter((x) => x.status === 'terjual');
+        if (from) soldList = soldList.filter((x) => (x.soldAt || '') >= from);
+        if (to) soldList = soldList.filter((x) => (x.soldAt || '') <= to);
+        const rows = [['Kode', 'Motor', 'Terjual', 'Pembelian', 'Perbaikan', 'Dokumen', 'Total Modal', 'Harga Jual', 'Laba/Rugi', 'Margin %']];
+        let totProfit = 0, totRev = 0;
+        soldList.sort((a, b) => (a.soldAt || '').localeCompare(b.soldAt || '')).forEach((x) => {
+          const t = calcTotals(x);
+          totProfit += t.profit; totRev += t.sellPrice;
+          rows.push([x.code, x.name, x.soldAt || '', t.purchase, t.repair, t.doc, t.modal, t.sellPrice, t.profit, t.margin]);
+        });
+        rows.push(['TOTAL', '', '', '', '', '', '', totRev, totProfit, '']);
+        sendCsv('laba-rugi.csv', rows); return;
+      }
+      return fail(res, 404, 'Jenis ekspor tidak dikenal');
     }
 
     return fail(res, 404, 'Endpoint tidak ditemukan');

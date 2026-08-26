@@ -9,9 +9,29 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
+const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const SESSION_TTL = 7 * 24 * 3600 * 1000; // 7 hari
 
 let cache = null;
+
+/* backup otomatis: maksimal 1x per 12 jam, simpan 14 terakhir */
+function autoBackup() {
+  try {
+    const last = cache.lastBackupAt ? new Date(cache.lastBackupAt).getTime() : 0;
+    if (Date.now() - last < 12 * 3600 * 1000) return;
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    fs.copyFileSync(DB_PATH, path.join(BACKUP_DIR, 'db-' + stamp + '.json'));
+    const files = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith('db-')).sort();
+    while (files.length > 14) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+    cache.lastBackupAt = new Date().toISOString();
+    save();
+    console.log('[db] Backup otomatis dibuat: db-' + stamp + '.json');
+  } catch (e) {
+    console.error('[db] Backup gagal:', e.message);
+  }
+}
 
 function load() {
   if (cache) return cache;
@@ -24,6 +44,7 @@ function load() {
     const seed = require('./seed-data');
     cache = {
       users: seed.users,
+      customers: seed.customers || [],
       units: seed.units,
       invoices: seed.invoices,
       sessions: {},
@@ -35,6 +56,14 @@ function load() {
   if (!cache.seq) cache.seq = { user: 1, unit: 1, inv: 1, cost: 1 };
   if (!cache.sessions) cache.sessions = {};
   if (!Array.isArray(cache.invoices)) cache.invoices = [];
+
+  /* siapkan folder pendukung */
+  try { fs.mkdirSync(PHOTOS_DIR, { recursive: true }); } catch (e) {}
+  try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch (e) {}
+
+  if (!cache.customers) cache.customers = [];
+  if (!cache.logs) cache.logs = [];
+  autoBackup();
 
   /* bersihkan sesi kadaluarsa */
   const now = Date.now();
@@ -59,4 +88,4 @@ function nextId(kind, prefix) {
   return prefix + '-' + n;
 }
 
-module.exports = { load, save, nextId, SESSION_TTL };
+module.exports = { load, save, nextId, SESSION_TTL, PHOTOS_DIR };

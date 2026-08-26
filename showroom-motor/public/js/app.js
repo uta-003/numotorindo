@@ -113,6 +113,13 @@ const ICONS = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   chevL: '<path d="m15 18-6-6 6-6"/>',
   chevR: '<path d="m9 18 6-6-6-6"/>',
+  contact: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 4V2h8v2M9 11h6M12 8v6"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
@@ -267,6 +274,7 @@ const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { key: 'units', label: 'Data Unit', icon: 'moto' },
   { key: 'invoices', label: 'Invoice', icon: 'receipt', show: () => S.user.role !== 'mekanik' },
+  { key: 'customers', label: 'Pelanggan', icon: 'contact', show: () => S.user.role !== 'mekanik' },
   { key: 'reports', label: 'Laba Rugi', icon: 'chart', show: () => !!S.perm.viewReports },
   { key: 'users', label: 'Pengguna', icon: 'users', show: () => !!S.perm.manageUsers }
 ];
@@ -334,6 +342,28 @@ function bootApp() {
     setBurgerIcon();
   });
 
+  /* mode gelap / terang */
+  const themeBtn = $('#btn-theme');
+  const applyThemeIcon = () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    themeBtn.innerHTML = ic(dark ? 'sun' : 'moon', 18);
+    themeBtn.title = dark ? 'Mode terang' : 'Mode gelap';
+  };
+  if (localStorage.getItem('sm_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  applyThemeIcon();
+  themeBtn.addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (dark) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('sm_theme', dark ? 'light' : 'dark');
+    applyThemeIcon();
+  });
+
+  /* ubah password sendiri */
+  const lockBtn = $('#btn-lock');
+  lockBtn.innerHTML = ic('lock', 18);
+  lockBtn.addEventListener('click', () => changePasswordModal());
+
   /* ciut/buka sidebar (desktop) — responsif */
   const COLLAPSE_BREAK = 1180; // di bawah lebar ini sidebar otomatis jadi icon rail
   let sideManual = 0;          // waktu toggle manual terakhir
@@ -387,6 +417,7 @@ function go(page) {
     dashboard: ['Dashboard', 'Ringkasan showroom hari ini'],
     units: ['Data Unit', 'Stok motor, biaya & total modal'],
     invoices: ['Invoice Penjualan', 'Buat, cetak & kelola invoice'],
+    customers: ['Pelanggan', 'Database pembeli & riwayat transaksi'],
     reports: ['Laporan Laba Rugi', 'Performa penjualan & profitabilitas'],
     users: ['Manajemen Pengguna', 'Akun, role & hak akses']
   };
@@ -394,7 +425,8 @@ function go(page) {
   $('#pg-title').textContent = t[0];
   $('#pg-sub').textContent = t[1];
   closeSidebarMobile();
-  const pages = { dashboard: pageDashboard, units: pageUnits, invoices: pageInvoices, reports: pageReports, users: pageUsers };
+  const pages = { dashboard: pageDashboard, units: pageUnits, invoices: pageInvoices,
+    customers: pageCustomers, reports: pageReports, users: pageUsers };
   (pages[page] || pageDashboard)();
 }
 
@@ -554,6 +586,71 @@ function bpkbCellHTML(bp) {
     '<div class="cell-sub">' + sisa + '</div>';
 }
 
+function docChip(u, key, label) {
+  const on = u.docs && u.docs[key];
+  return '<button type="button" class="chip-doc' + (on ? ' on' : '') + '" data-doc="' + key + '">' + ic(on ? 'check' : 'x', 12) + ' ' + label + '</button>';
+}
+
+/* pajak jatuh tempo ≤ 30 hari -> peringatan */
+function pajakNear(u) {
+  if (!u.pajakDue) return false;
+  const diff = Math.round((new Date(u.pajakDue + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 86400000);
+  return diff <= 30;
+}
+
+/* ---------- Galeri foto unit ---------- */
+function renderFotoTab(ov, u, body) {
+  const photos = u.photos || [];
+  body.innerHTML =
+    '<input type="file" id="ph-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none">' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">' +
+      '<button class="btn primary sm" id="ph-add">' + ic('image', 15) + ' Unggah Foto</button>' +
+      '<span class="cell-sub">JPG/PNG/WebP · maks 1 MB per foto · foto pertama menjadi sampul</span>' +
+    '</div>' +
+    (photos.length
+      ? '<div class="photo-grid">' + photos.map((p) =>
+          '<div class="photo-item">' +
+            '<img src="' + esc(p.url) + '" alt="foto">' +
+            '<span class="photo-cover-acts">' +
+              (p.id !== photos[0].id ? '<button type="button" data-ph-cover="' + p.id + '" title="Jadikan sampul">' + ic('grid', 13) + '</button>' : '') +
+              '<button type="button" data-ph-del="' + p.id + '" title="Hapus">' + ic('trash', 13) + '</button>' +
+            '</span>' +
+            (p.id === photos[0].id ? '<span class="badge bpkb-proses photo-badge">Sampul</span>' : '') +
+          '</div>').join('') + '</div>'
+      : '<div class="empty-state">' + ic('image', 40) + '<p>Belum ada foto unit.</p></div>');
+
+  $('#ph-add', ov).addEventListener('click', () => $('#ph-input', ov).click());
+  $('#ph-input', ov).addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    for (const f of files) {
+      if (!/image\/(jpeg|png|webp)/.test(f.type)) { toast(f.name + ': format tidak didukung', 'err'); continue; }
+      if (f.size > 1024 * 1024) { toast(f.name + ': melebihi 1 MB', 'err'); continue; }
+      const rd = new FileReader();
+      await new Promise((res2) => { rd.onload = () => res2(); rd.readAsDataURL(f); });
+      try {
+        const r = await API.post('/units/' + u.id + '/photos', { filename: f.name, data: String(rd.result) });
+        Object.assign(u, r.unit);
+        toast('Foto diunggah 📷', 'ok');
+      } catch (err) { toast(err.message, 'err'); }
+    }
+    renderFotoTab(ov, u, body);
+  });
+  $$('[data-ph-del]', ov).forEach((b) => b.addEventListener('click', async () => {
+    if (!(await confirmDlg('Hapus Foto?', 'Foto ini akan dihapus permanen.'))) return;
+    try {
+      const r = await API.del('/units/' + u.id + '/photos/' + b.dataset.phDel);
+      Object.assign(u, r); renderFotoTab(ov, u, body); toast('Foto dihapus', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+  $$('[data-ph-cover]', ov).forEach((b) => b.addEventListener('click', async () => {
+    try {
+      const r = await API.post('/units/' + u.id + '/photos/cover', { photoId: b.dataset.phCover });
+      Object.assign(u, r); renderFotoTab(ov, u, body); toast('Sampul diperbarui', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+}
+
 /* ============================================================
    Halaman: Data Unit
 ============================================================ */
@@ -561,7 +658,7 @@ async function pageUnits() {
   const c = $('#content');
   c.innerHTML = '<div class="empty-state"><p>Memuat data…</p></div>';
   try {
-    S.units = await API.get('/units');
+    S.units = await API.get('/units' + (S.unitsArch ? '?archived=' + S.unitsArch : ''));
   } catch (err) {
     c.innerHTML = '<div class="card"><div class="alert error">' + esc(err.message) + '</div></div>';
     return;
@@ -576,6 +673,7 @@ async function pageUnits() {
       '<select id="u-status" class="filter">' +
         '<option value="">Semua Status</option><option value="tersedia">Tersedia</option>' +
         '<option value="booking">Booking</option><option value="terjual">Terjual</option></select>' +
+      '<select id="u-arch" class="filter"><option value="">Aktif</option><option value="1"' + (S.unitsArch === '1' ? ' selected' : '') + '>Arsip</option><option value="all"' + (S.unitsArch === 'all' ? ' selected' : '') + '>Semua</option></select>' +
       (S.perm.manageUnits ? '<button class="btn primary" id="btn-add-unit">' + ic('plus', 16) + ' Tambah Unit</button>' : '') +
     '</div>' +
     '<div id="u-table"></div>';
@@ -595,10 +693,10 @@ async function pageUnits() {
 
     const rows = list.map((u) => {
       const t = u.totals || {};
-      let row = '<tr data-detail="' + u.id + '" style="cursor:pointer">' +
+      let row = '<tr data-detail="' + u.id + '" style="cursor:pointer' + (u.archived ? ';opacity:.55' : '') + '">' +
         '<td><span class="mono">' + esc(u.code) + '</span></td>' +
         '<td><div class="cell-main">' + esc(u.name) + '</div><div class="cell-sub">' + esc(u.brand) + ' · ' + u.year + ' · ' + u.cc + 'cc · ' + (u.km || 0).toLocaleString('id-ID') + ' km</div></td>' +
-        '<td>' + esc(u.nopol || '—') + '</td>';
+        '<td>' + esc(u.nopol || '—') + (pajakNear(u) ? '<div class="cell-sub due-red">Pajak ' + fmtDate(u.pajakDue) + '</div>' : '') + '</td>';
       if (showFin) {
         row += '<td style="text-align:right" class="num"><b>' + fmtRp(t.modal) + '</b>' +
           '<div class="cell-sub num">Beli ' + fmtRp(t.purchase) + ' + Perbaikan ' + fmtRp(t.repair) + ' + Dokumen ' + fmtRp(t.doc) + '</div></td>' +
@@ -615,6 +713,8 @@ async function pageUnits() {
       row += '<td><div class="cell-actions">' +
         '<button class="icon-btn" data-act="detail" data-id="' + u.id + '" title="Detail">' + ic('eye', 17) + '</button>' +
         (S.perm.manageUnits ? '<button class="icon-btn" data-act="edit" data-id="' + u.id + '" title="Edit">' + ic('pencil', 16) + '</button>' +
+        '<button class="icon-btn" data-act="dup" data-id="' + u.id + '" title="Duplikat unit">' + ic('copy', 16) + '</button>' +
+        '<button class="icon-btn" data-act="arch" data-id="' + u.id + '" title="' + (u.archived ? 'Keluarkan dari arsip' : 'Arsipkan unit') + '">' + ic(u.archived ? 'eye' : 'doc', 16) + '</button>' +
         '<button class="icon-btn red" data-act="del" data-id="' + u.id + '" title="Hapus">' + ic('trash', 16) + '</button>' : '') +
         '</div></td></tr>';
       return row;
@@ -630,10 +730,19 @@ async function pageUnits() {
     }));
     $$('[data-act]').forEach((b) => b.addEventListener('click', async () => {
       const id = b.dataset.id, act = b.dataset.act;
+      const u = S.units.find((x) => x.id === id);
       if (act === 'detail') unitDetail(id);
-      if (act === 'edit') unitForm(S.units.find((x) => x.id === id));
+      if (act === 'edit') unitForm(u);
+      if (act === 'dup') {
+        if (!(await confirmDlg('Duplikat Unit?', 'Salinan <b>' + esc(u.code) + '</b> akan dibuat sebagai unit baru (status Tersedia, tanpa nopol).'))) return;
+        try { const r2 = await API.post('/units/' + u.id + '/duplicate'); toast('Diduplikasi menjadi ' + r2.code, 'ok'); pageUnits(); }
+        catch (err) { toast(err.message, 'err'); }
+      }
+      if (act === 'arch') {
+        try { await API.patch('/units/' + u.id, { archived: !u.archived }); toast(u.archived ? 'Dikeluarkan dari arsip' : 'Unit diarsipkan', 'ok'); pageUnits(); }
+        catch (err) { toast(err.message, 'err'); }
+      }
       if (act === 'del') {
-        const u = S.units.find((x) => x.id === id);
         if (!(await confirmDlg('Hapus Unit?', 'Unit <b>' + esc(u.code) + ' — ' + esc(u.name) + '</b> beserta catatan biayanya akan dihapus permanen.'))) return;
         try { await API.del('/units/' + id); toast('Unit dihapus', 'ok'); pageUnits(); }
         catch (err) { toast(err.message, 'err'); }
@@ -643,6 +752,7 @@ async function pageUnits() {
 
   $('#u-q').addEventListener('input', render);
   $('#u-status').addEventListener('change', render);
+  $('#u-arch').addEventListener('change', () => { S.unitsArch = $('#u-arch').value; pageUnits(); });
   const addBtn = $('#btn-add-unit');
   if (addBtn) addBtn.addEventListener('click', () => unitForm(null));
   render();
@@ -731,6 +841,12 @@ function unitForm(unit) {
       '<div><label>Tanggal Pembelian</label><input name="purchaseDate" type="date" value="' + (isEdit ? (unit.purchaseDate || todayISO()) : todayISO()) + '"></div>' +
     '</div>' +
     '<div class="form-grid">' +
+      '<div><label>No. Rangka</label><input name="noRangka" value="' + esc(isEdit ? (unit.noRangka || '') : '') + '" placeholder="MHLCX…" style="text-transform:uppercase"></div>' +
+      '<div><label>No. Mesin</label><input name="noMesin" value="' + esc(isEdit ? (unit.noMesin || '') : '') + '" placeholder="JC39E…" style="text-transform:uppercase"></div>' +
+      '<div><label>Pajak Jatuh Tempo</label><input type="date" name="pajakDue" value="' + esc(isEdit ? (unit.pajakDue || '') : '') + '"></div>' +
+      '<div><label>&nbsp;</label><span class="cell-sub">Sesuai BPKB/STNK</span></div>' +
+    '</div>' +
+    '<div class="form-grid">' +
       '<div><label>Harga Jual Rencana (Rp)</label><input name="sellPrice" class="rp" inputmode="numeric" value="' + (isEdit && unit.sellPrice != null ? Number(unit.sellPrice).toLocaleString('id-ID') : '') + '" placeholder="0"></div>' +
       '<div><label>Status Unit</label><select name="status">' +
         '<option value="tersedia"' + ((!isEdit || unit.status === 'tersedia') ? ' selected' : '') + '>Tersedia</option>' +
@@ -776,6 +892,7 @@ function unitForm(unit) {
       status: f.status.value,
       bpkbDays: parseInt(f.bpkbDays.value, 10) || 0,
       bpkbStart: f.bpkbStart.value,
+      noRangka: f.noRangka.value.trim(), noMesin: f.noMesin.value.trim(), pajakDue: f.pajakDue.value,
       repairCosts: collectCostRows($('[data-cf="repair"]', ov)),
       docCosts: collectCostRows($('[data-cf="doc"]', ov)),
       notes: f.notes.value.trim()
@@ -810,6 +927,7 @@ async function unitDetail(id) {
   if (!isMek) {
     tabsDef.push({ key: 'doc', label: 'Biaya Dokumen' });
     tabsDef.push({ key: 'sum', label: 'Ringkasan Modal & Laba' });
+    tabsDef.push({ key: 'foto', label: 'Foto' });
   }
 
   const ov = openModal(
@@ -838,6 +956,9 @@ async function unitDetail(id) {
         infoItem('Kilometer', (u.km || 0).toLocaleString('id-ID') + ' km') +
         infoItem('Warna', esc(u.color || '—')) +
         infoItem('No. Polisi', esc(u.nopol || '—')) +
+        (!isMek ? infoItem('No. Rangka', esc(u.noRangka || '—')) : '') +
+        (!isMek ? infoItem('No. Mesin', esc(u.noMesin || '—')) : '') +
+        (!isMek ? infoItem('Pajak Jatuh Tempo', u.pajakDue ? fmtDate(u.pajakDue) : '—') : '') +
         (!isMek ? infoItem('Tanggal Beli', fmtDate(u.purchaseDate)) : '') +
         (!isMek && u.status === 'terjual' ? infoItem('Terjual', fmtDate(u.soldAt)) : '') +
         (u.bpkb
@@ -849,7 +970,10 @@ async function unitDetail(id) {
               : (u.bpkb.remainWork === 0 ? '<span class="due-red">Jatuh tempo hari ini</span>' : 'Sisa ' + u.bpkb.remainWork + ' HK'))
           : infoItem('BPKB', '—')) +
         '</div>' +
-        (u.notes ? '<label style="margin-top:18px">Catatan</label><p style="font-size:.9rem;color:var(--muted);line-height:1.6">' + esc(u.notes) + '</p>' : '') +
+                (u.notes ? '<label style="margin-top:18px">Catatan</label><p style="font-size:.9rem;color:var(--muted);line-height:1.6">' + esc(u.notes) + '</p>' : '') +
+        (!isMek ? '<label style="margin-top:16px">Kelengkapan Dokumen</label><div class="docs-row">' +
+          docChip(u, 'stnk', 'STNK') + docChip(u, 'faktur', 'Faktur') + docChip(u, 'formA', 'Form A') +
+        '</div>' : '') +
         (u.bpkb && S.user.role !== 'mekanik' ? '<div class="m-actions" style="margin-top:18px">' +
           (u.bpkb.status === 'siap'
             ? '<span class="badge bpkb-siap" style="font-size:.85rem;padding:8px 16px;border-radius:999px">BPKB SIAP · Diambil ' + fmtDate(u.bpkb.readyAt) + '</span>' +
@@ -867,10 +991,23 @@ async function unitDetail(id) {
           renderTab('info');
         } catch (err) { toast(err.message, 'err'); }
       });
+      /* toggle kelengkapan dokumen */
+      $$('[data-doc]', body).forEach((btn) => btn.addEventListener('click', async () => {
+        const k = btn.dataset.doc;
+        const nv = !(u.docs && u.docs[k]);
+        try {
+          await API.patch('/units/' + u.id, { docs: Object.assign({}, u.docs || {}, (function(){const o={};o[k]=nv;return o;})()) });
+          u.docs = Object.assign({}, u.docs || {}, (function(){const o={};o[k]=nv;return o;})());
+          btn.classList.toggle('on');
+          btn.innerHTML = ic(nv ? 'check' : 'x', 12) + ' ' + btn.textContent.trim();
+          toast('Kelengkapan dokumen diperbarui', 'ok');
+        } catch (err) { toast(err.message, 'err'); }
+      }));
       return;
     }
 
     if (key === 'repair' || key === 'doc') renderCostTab(ov, u, key, body, canRepair, canDocs, (r) => Object.assign(u, r));
+    else if (key === 'foto') renderFotoTab(ov, u, body);
     else renderSumTab(body, t, u);
   }
 
@@ -988,8 +1125,10 @@ async function pageInvoices() {
       '<td><div class="cell-main">' + esc(i.buyer.name) + '</div><div class="cell-sub">' + esc(i.buyer.phone || '') + '</div></td>' +
       '<td>' + fmtDate(i.date) + '</td>' +
       '<td><span class="badge role sales" style="text-transform:capitalize">' + esc(i.paymentMethod) + '</span></td>' +
-      '<td style="text-align:right"><b class="num">' + fmtRp(i.total) + '</b></td>' +
+      '<td style="text-align:right"><b class="num">' + fmtRp(i.total) + '</b>' +
+        (i.lunas ? '<div class="cell-sub profit-chip up">✓ LUNAS</div>' : '<div class="cell-sub due-red num">Sisa ' + fmtRp(i.sisa) + '</div>') + '</td>' +
       '<td><div class="cell-actions">' +
+        '<button class="icon-btn" data-act="pay" data-id="' + i.id + '" title="Kelola pembayaran/cicilan">' + ic('wallet', 17) + '</button>' +
         '<button class="icon-btn" data-act="print" data-id="' + i.id + '" title="Cetak">' + ic('printer', 17) + '</button>' +
         (canDelete ? '<button class="icon-btn red" data-act="del" data-id="' + i.id + '" title="Hapus (admin)">' + ic('trash', 16) + '</button>' : '') +
       '</div></td></tr>').join('');
@@ -1008,6 +1147,7 @@ async function pageInvoices() {
       const inv = S.invoices.find((x) => x.id === b.dataset.id);
       if (!inv) return;
       if (b.dataset.act === 'print') printInvoice(inv);
+      else if (b.dataset.act === 'pay') paymentsManager(inv.id);
       else {
         if (!(await confirmDlg('Hapus Invoice?', 'Invoice <b>' + esc(inv.number) + '</b> akan dihapus dan unit dikembalikan ke status <b>Tersedia</b>.'))) return;
         try { await API.del('/invoices/' + inv.id); toast('Invoice dihapus, unit kembali tersedia', 'ok'); pageInvoices(); }
@@ -1024,9 +1164,11 @@ async function pageInvoices() {
 
 /* ---------- Form buat invoice ---------- */
 async function invoiceCreate() {
-  let units;
-  try { units = await API.get('/units'); }
-  catch (err) { toast(err.message, 'err'); return; }
+  let units, customers = [];
+  try {
+    const r = await Promise.all([API.get('/units'), API.get('/customers').catch(() => [])]);
+    units = r[0]; customers = r[1];
+  } catch (err) { toast(err.message, 'err'); return; }
 
   const sellable = units.filter((u) => u.status !== 'terjual' && !u.invoiceId);
   if (!sellable.length) { toast('Tidak ada unit yang bisa dijual — semua sudah terjual', 'err'); return; }
@@ -1040,6 +1182,9 @@ async function invoiceCreate() {
     '<select name="unitId"><option value="">— Pilih unit —</option>' +
       sellable.map((u) => '<option value="' + u.id + '" data-price="' + (u.totals.sellPrice || 0) + '">' +
         esc(u.code + ' · ' + u.name + ' (' + u.year + ')') + '</option>').join('') + '</select>' +
+    '<label>Pelanggan Terdaftar</label>' +
+    '<select name="customerId"><option value="">— Pelanggan baru / isi manual —</option>' +
+      customers.map((cu) => '<option value="' + cu.id + '">' + esc(cu.name + (cu.phone ? ' · ' + cu.phone : '')) + '</option>').join('') + '</select>' +
     '<div class="form-grid">' +
       '<div><label>Nama Pembeli *</label><input name="buyerName" placeholder="Nama lengkap"></div>' +
       '<div><label>No. Telepon</label><input name="buyerPhone" placeholder="08xx-xxxx-xxxx"></div>' +
@@ -1048,6 +1193,7 @@ async function invoiceCreate() {
     '<div class="form-grid">' +
       '<div><label>Harga Jual (Rp)</label><input name="sellPrice" class="rp" inputmode="numeric" placeholder="0"></div>' +
       '<div><label>Diskon (Rp)</label><input name="discount" class="rp" inputmode="numeric" placeholder="0"></div>' +
+      '<div><label>DP Diterima (Rp)</label><input name="dpAmount" class="rp" inputmode="numeric" placeholder="0"></div>' +
       '<div><label>Metode Pembayaran *</label><select name="paymentMethod"><option value="tunai">Tunai</option><option value="transfer">Transfer Bank</option><option value="dp">DP / Cicilan Awal</option><option value="kredit">Kredit</option></select></div>' +
       '<div><label>Tanggal</label><input name="date" type="date" value="' + todayISO() + '"></div>' +
     '</div>' +
@@ -1086,11 +1232,13 @@ async function invoiceCreate() {
     try {
       const r = await API.post('/invoices', {
         unitId: f.unitId.value,
+        customerId: f.customerId.value,
         buyerName: f.buyerName.value.trim(),
         buyerPhone: f.buyerPhone.value.trim(),
         buyerAddress: f.buyerAddress.value.trim(),
         sellPrice: parseRp(f.sellPrice.value),
         discount: parseRp(f.discount.value),
+        dpAmount: parseRp(f.dpAmount.value),
         paymentMethod: f.paymentMethod.value,
         date: f.date.value,
         note: f.note.value.trim()
@@ -1098,7 +1246,7 @@ async function invoiceCreate() {
       closeModal(ov);
       toast('Invoice ' + r.invoice.number + ' dibuat — unit terjual!', 'ok');
       go(S.page);
-      setTimeout(() => printInvoice(r.invoice), 350);
+      setTimeout(() => paymentsManager(r.invoice.id), 350);
     } catch (err) {
       showFieldErrors(ov, err.data && err.data.errors, $('#iv-err', ov));
       if (!err.data || !err.data.errors) toast(err.message, 'err');
@@ -1148,6 +1296,12 @@ function printInvoice(inv) {
         '</tbody>' +
       '</table>' +
       '<div class="inv-terbilang"><b>Terbilang:</b> #' + terbilang(inv.total).replace(/^\w/, (c) => c.toUpperCase()) + ' Rupiah#</div>' +
+      '<div style="display:flex;gap:30px;margin-top:12px;font-size:.86rem">' +
+        '<span>Dibayar: <b class="num">' + fmtRp(inv.paid != null ? inv.paid : inv.total) + '</b></span>' +
+        ((inv.sisa != null ? inv.sisa : 0) > 0
+          ? '<span>Sisa tagihan: <b class="num" style="color:var(--red)">' + fmtRp(inv.sisa) + '</b></span>'
+          : '<span style="color:var(--green);font-weight:800">LUNAS ✓</span>') +
+      '</div>' +
       (inv.note ? '<div class="inv-note">Catatan: ' + esc(inv.note) + '</div>' : '') +
       '<div class="inv-signs">' +
         '<div class="sg"><small>Penerima,</small><div class="line">( ' + esc(inv.buyer.name) + ' )</div></div>' +
@@ -1213,9 +1367,18 @@ async function pageReports() {
       '<div class="legend"><span><i style="background:var(--orange)"></i>Omzet</span><span><i style="background:var(--yellow)"></i>Laba</span><span><i style="background:var(--red)"></i>Rugi</span></div>' +
     '</div>' +
     '<div class="section-head"><div><h2 style="color:var(--navy)">Rincian Laba Rugi per Unit Terjual</h2>' +
-      '<p class="sub">Modal = pembelian + perbaikan + dokumen · Laba = harga jual − modal</p></div>' +
-      '<input type="month" id="r-month" class="filter" value=""> <button class="btn ghost sm" id="r-clear">Semua Periode</button></div>' +
-    '<div id="r-table"></div>';
+      '<p class="sub">Hover angka laba untuk melihat rumus lengkapnya</p></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn ghost sm" id="exp-units">' + ic('download', 14) + ' Stok</button>' +
+        '<button class="btn ghost sm" id="exp-inv">' + ic('download', 14) + ' Invoice</button>' +
+        '<button class="btn ghost sm" id="exp-profit">' + ic('download', 14) + ' Laba/Rugi</button>' +
+        '<input type="month" id="r-month" class="filter" value="">' +
+        '<button class="btn ghost sm" id="r-clear">Semua Periode</button>' +
+      '</div></div>' +
+    '<div id="r-table"></div>' +
+    '<div class="card" style="margin-top:18px"><h3 style="display:flex;align-items:center;gap:8px">' + ic('wallet', 18) +
+      ' Komisi &amp; Target Sales <select id="cm-month" class="filter" style="margin-left:auto;width:auto"></select></h3>' +
+      '<div id="cm-body"><p style="color:var(--muted);font-size:.86rem">Memuat…</p></div></div>';
 
   function statCard(col, icon, val, lbl) {
     return '<div class="stat-card"><div class="stat-ico ' + col + '">' + ic(icon, 22) + '</div>' +
@@ -1262,6 +1425,56 @@ async function pageReports() {
   $('#r-month').addEventListener('change', renderTable);
   $('#r-clear').addEventListener('click', () => { $('#r-month').value = ''; renderTable(); });
   renderTable();
+
+  /* ekspor CSV */
+  $('#exp-units').addEventListener('click', () => downloadCsv('/export/units.csv', 'stok-unit.csv'));
+  $('#exp-inv').addEventListener('click', () => downloadCsv('/export/invoices.csv', 'invoice.csv'));
+  $('#exp-profit').addEventListener('click', () => {
+    const mv = $('#r-month').value;
+    const q = mv ? ('?from=' + mv + '-01&to=' + mv + '-31') : '';
+    downloadCsv('/export/profit.csv' + q, 'laba-rugi.csv');
+  });
+
+  /* komisi & target sales */
+  const cmSel = $('#cm-month');
+  const nowM = isoMonth(new Date());
+  for (let k = 5; k >= 0; k--) {
+    const d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() - k);
+    const key = isoMonth(d0);
+    cmSel.insertAdjacentHTML('beforeend',
+      '<option value="' + key + '"' + (key === nowM ? ' selected' : '') + '>' + monthLabel(key) + '</option>');
+  }
+  async function loadComm() {
+    const mm = cmSel.value || nowM;
+    try {
+      const r = await API.get('/reports/commissions?month=' + mm);
+      const bodyEl = $('#cm-body');
+      if (!r.rows.length) {
+        bodyEl.innerHTML = '<p style="color:var(--muted);font-size:.86rem">Belum ada penjualan pada ' + monthLabel(mm) + '.</p>';
+        return;
+      }
+      bodyEl.innerHTML =
+        '<div class="table-wrap" style="box-shadow:none;border:none"><table class="data" style="min-width:520px">' +
+        '<thead><tr><th>Sales</th><th style="text-align:right">Unit</th><th style="text-align:right">Omzet</th>' +
+        '<th style="text-align:right">Laba</th><th style="text-align:right">Target</th><th>Capaian</th><th style="text-align:right">Komisi</th></tr></thead><tbody>' +
+        r.rows.map((a) => {
+          const pctTxt = a.pct == null ? '—' : a.pct + '%';
+          const col = a.pct != null && a.pct >= 100 ? 'var(--green)' : (a.pct != null && a.pct >= 70 ? 'var(--orange)' : 'var(--red)');
+          return '<tr><td><div class="cell-main">' + esc(a.name) + '</div><div class="cell-sub">' + esc(a.role) +
+            ' · komisi ' + a.komisiPersen + '% dari laba</div></td>' +
+            '<td class="num" style="text-align:right">' + a.count + '</td>' +
+            '<td class="num" style="text-align:right">' + fmtRp(a.omzet) + '</td>' +
+            '<td class="num" style="text-align:right;color:' + (a.laba >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtRp(a.laba) + '</td>' +
+            '<td class="num" style="text-align:right">' + (a.target ? fmtRp(a.target) : '—') + '</td>' +
+            '<td style="min-width:120px"><div class="track"><div class="fill hot" style="width:' +
+              (a.pct == null ? 0 : Math.min(100, a.pct)) + '%"></div></div>' +
+            '<div class="cell-sub num" style="color:' + col + '">' + pctTxt + ' capaian</div></td>' +
+            '<td class="num" style="text-align:right"><b>' + fmtRp(a.komisi) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    } catch (err) { $('#cm-body').innerHTML = '<p class="due-red">' + esc(err.message) + '</p>'; }
+  }
+  cmSel.addEventListener('change', loadComm);
+  loadComm();
 }
 
 /* ============================================================
@@ -1342,6 +1555,10 @@ function userForm(user, onDone) {
         '<option value="' + r + '"' + (isEdit && user.role === r ? ' selected' : '') + '>' + (ROLE_LABEL[r] || r) + '</option>').join('') +
     '</select>' +
     '<div class="form-grid">' +
+      '<div><label>Komisi dari Laba (%)</label><input type="number" name="komisiPersen" min="0" max="100" value="' + (isEdit && user.komisiPersen != null ? user.komisiPersen : 0) + '"></div>' +
+      '<div><label>Target Omzet / Bulan (Rp)</label><input name="targetBulanan" class="rp" inputmode="numeric" value="' + (isEdit && user.targetBulanan ? Number(user.targetBulanan).toLocaleString('id-ID') : '0') + '"></div>' +
+    '</div>' +
+    '<div class="form-grid">' +
       '<div><label>Password ' + (isEdit ? '(kosongkan jika tidak diganti)' : '*') + '</label><input name="password" type="password" placeholder="min. 5 karakter" autocomplete="new-password"></div>' +
       '<div><label>Status Akun</label><select name="active">' +
         '<option value="1" ' + (isEdit && user.active === false ? '' : 'selected') + '>Aktif</option>' +
@@ -1360,6 +1577,8 @@ function userForm(user, onDone) {
     const f = e.target;
     const body = {
       name: f.name.value.trim(), username: f.username.value.trim(), role: f.role.value,
+      komisiPersen: parseInt(f.komisiPersen.value, 10) || 0,
+      targetBulanan: parseRp(f.targetBulanan.value),
       active: !!parseInt(f.active.value, 10)
     };
     if (f.password.value) body.password = f.password.value;
@@ -1374,6 +1593,202 @@ function userForm(user, onDone) {
       if (!err.data || !err.data.errors) toast(err.message, 'err');
     }
   });
+}
+
+/* ---------- Pelanggan ---------- */
+async function pageCustomers() {
+  if (S.user.role === 'mekanik') { $('#content').innerHTML = '<div class="card"><div class="alert error">Tidak diizinkan.</div></div>'; return; }
+  const c = $('#content');
+  c.innerHTML = '<div class="empty-state"><p>Memuat pelanggan…</p></div>';
+  let list;
+  try { list = await API.get('/customers'); }
+  catch (err) { c.innerHTML = '<div class="card"><div class="alert error">' + esc(err.message) + '</div></div>'; return; }
+
+  c.innerHTML =
+    '<div class="toolbar"><div class="search-box">' + ic('search') + '<input id="c-q" type="text" placeholder="Cari nama / telepon…"></div>' +
+    '<button class="btn primary" id="btn-add-cust">' + ic('plus', 16) + ' Tambah Pelanggan</button></div>' +
+    '<div id="c-table"></div>';
+
+  function render() {
+    const q = ($('#c-q').value || '').toLowerCase();
+    let rows = list;
+    if (q) rows = rows.filter((x) => [x.name, x.phone, x.address].join(' ').toLowerCase().includes(q));
+    const trs = rows.map((cu) =>
+      '<tr data-cust="' + cu.id + '" style="cursor:pointer">' +
+      '<td><div class="cell-main">' + esc(cu.name) + '</div><div class="cell-sub">' + esc(cu.phone || '—') + '</div></td>' +
+      '<td>' + esc(cu.address || '—') + '</td>' +
+      '<td style="text-align:right" class="num">' + (cu.totalTransaksi || 0) + 'x</td>' +
+      '<td style="text-align:right" class="num"><b>' + fmtRp(cu.omzet || 0) + '</b></td>' +
+      '<td><div class="cell-actions">' +
+        '<button class="icon-btn" data-act="edit" data-id="' + cu.id + '" title="Ubah">' + ic('pencil', 16) + '</button>' +
+        '<button class="icon-btn red" data-act="del" data-id="' + cu.id + '" title="Hapus">' + ic('trash', 16) + '</button>' +
+      '</div></td></tr>').join('');
+    $('#c-table').innerHTML = '<div class="table-wrap"><table class="data">' +
+      '<thead><tr><th>Nama</th><th>Alamat</th><th style="text-align:right">Transaksi</th><th style="text-align:right">Total Belanja</th><th style="text-align:right">Aksi</th></tr></thead>' +
+      '<tbody>' + (trs || emptyRow(5)) + '</tbody></table></div>';
+    $$('tr[data-cust]').forEach((tr) => tr.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act]')) return;
+      const cu = list.find((x) => x.id === tr.dataset.cust); if (cu) customerDetail(cu.id);
+    }));
+    $$('[data-act]').forEach((b) => b.addEventListener('click', async () => {
+      const cu = list.find((x) => x.id === b.dataset.id); if (!cu) return;
+      if (b.dataset.act === 'edit') customerForm(cu, () => pageCustomers());
+      else {
+        if (!(await confirmDlg('Hapus Pelanggan?', '<b>' + esc(cu.name) + '</b> akan dihapus permanen.'))) return;
+        try { await API.del('/customers/' + cu.id); toast('Pelanggan dihapus', 'ok'); pageCustomers(); }
+        catch (err) { toast(err.message, 'err'); }
+      }
+    }));
+  }
+  $('#c-q').addEventListener('input', render);
+  $('#btn-add-cust').addEventListener('click', () => customerForm(null, () => pageCustomers()));
+  render();
+}
+
+function customerForm(cust, onDone) {
+  const isEdit = !!cust;
+  const ov = openModal(
+    '<div class="m-head"><h3>' + (isEdit ? 'Ubah Pelanggan' : 'Tambah Pelanggan') + '</h3><button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<form id="cf-form"><div class="alert error hidden" id="cf-err"></div>' +
+    '<label>Nama *</label><input name="name" value="' + esc(isEdit ? cust.name : '') + '" placeholder="Nama lengkap">' +
+    '<label>Telepon</label><input name="phone" value="' + esc(isEdit ? (cust.phone || '') : '') + '" placeholder="08xx…">' +
+    '<label>Alamat</label><textarea name="address">' + esc(isEdit ? (cust.address || '') : '') + '</textarea>' +
+    '<label>Catatan</label><textarea name="notes" placeholder="minat, riwayat…">' + esc(isEdit ? (cust.notes || '') : '') + '</textarea>' +
+    '<div class="m-actions"><button type="button" class="btn ghost" data-close>Batal</button><button type="submit" class="btn primary">Simpan</button></div></form>');
+  $('#cf-form', ov).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const body = { name: f.name.value.trim(), phone: f.phone.value.trim(), address: f.address.value.trim(), notes: f.notes.value.trim() };
+    try {
+      if (isEdit) await API.put('/customers/' + cust.id, body);
+      else await API.post('/customers', body);
+      closeModal(ov); toast('Pelanggan tersimpan', 'ok'); if (onDone) onDone();
+    } catch (err) { showFieldErrors(ov, err.data && err.data.errors, $('#cf-err', ov)); if (!err.data || !err.data.errors) toast(err.message, 'err'); }
+  });
+}
+
+async function customerDetail(id) {
+  let all;
+  try { all = await Promise.all([API.get('/customers'), API.get('/invoices')]); }
+  catch (err) { toast(err.message, 'err'); return; }
+  const cu = all[0].find((x) => x.id === id);
+  if (!cu) { toast('Pelanggan tidak ditemukan', 'err'); return; }
+  const invs = all[1].filter((i) => i.customerId === id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const omzet = invs.reduce((s, i) => s + i.total, 0);
+  openModal(
+    '<div class="m-head"><div><h3>' + esc(cu.name) + '</h3><p class="m-sub">' + esc(cu.phone || '—') + ' · ' + esc(cu.address || '—') + '</p></div><button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<div class="info-grid" style="margin-top:12px">' +
+      infoItem('Transaksi', invs.length + 'x') +
+      infoItem('Total Belanja', fmtRp(omzet)) +
+      (cu.notes ? infoItem('Catatan', esc(cu.notes)) : '') +
+    '</div>' +
+    '<label style="margin-top:18px">Riwayat Invoice</label>' +
+    (invs.length
+      ? '<div class="cost-list">' + invs.map((i) =>
+          '<div class="cost-row"><span class="mono">' + esc(i.number) + '</span>' +
+          '<div class="cost-info"><strong>' + esc(i.snapshot.name) + '</strong><span>' + fmtDate(i.date) + '</span></div>' +
+          '<span class="' + (i.lunas ? '' : 'due-red') + '" style="font-weight:800;font-size:.8rem">' + (i.lunas ? 'LUNAS' : 'Sisa ' + fmtRp(i.sisa)) + '</span>' +
+          '<button class="icon-btn" data-print-inv="' + i.id + '" title="Cetak">' + ic('printer', 16) + '</button></div>').join('') + '</div>'
+      : '<p style="color:var(--muted);font-size:.88rem;padding:8px 0">Belum ada transaksi.</p>'),
+    { wide: true });
+  $$('[data-print-inv]').forEach((b) => b.addEventListener('click', () => {
+    const i = invs.find((x) => x.id === b.dataset.printInv);
+    if (i) printInvoice(i);
+  }));
+}
+
+/* ---------- Pembayaran invoice ---------- */
+async function paymentsManager(invId) {
+  let r;
+  try { r = await API.get('/invoices/' + invId); } catch (err) { toast(err.message, 'err'); return; }
+  const inv = r.invoice;
+  const canPay = S.user.role === 'admin' || S.user.role === 'sales';
+  const pct = Math.min(100, Math.round(inv.paid / Math.max(1, inv.total) * 100));
+  const rows = inv.payments.map((p) =>
+    '<div class="cost-row"><div class="cost-ico doc">' + ic('wallet', 15) + '</div>' +
+    '<div class="cost-info"><strong class="num">' + fmtRp(p.amount) + '</strong>' +
+    '<span>' + fmtDate(p.date) + ' · ' + p.method + (p.note ? ' · ' + esc(p.note) : '') + '</span></div>' +
+    (canPay ? '<button class="icon-btn red" data-pay-del="' + p.id + '">' + ic('trash', 15) + '</button>' : '') +
+    '</div>').join('');
+
+  const ov = openModal(
+    '<div class="m-head"><div><h3>Pembayaran</h3><p class="m-sub mono">' + esc(inv.number) + '</p></div>' +
+    '<button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<p style="font-size:.9rem;margin-bottom:10px"><b>' + esc(inv.buyer.name) + '</b> · ' + esc(inv.snapshot.name) + '</p>' +
+    '<div class="sum-bars" style="margin:0 0 6px">' +
+      sbar('Dibayar ' + fmtRp(inv.paid), inv.paid, pct, 'hot') +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:8px">' +
+      '<span class="' + (inv.lunas ? 'profit-chip up' : 'due-red') + '">' + (inv.lunas ? '✓ LUNAS' : 'Sisa ' + fmtRp(inv.sisa)) + '</span>' +
+      '<b class="num">Total ' + fmtRp(inv.total) + '</b></div>' +
+    '<div class="cost-list">' + (rows || '<p style="color:var(--muted);font-size:.86rem;padding:6px 0">Belum ada pembayaran dicatat.</p>') + '</div>' +
+    (canPay && !inv.lunas ?
+      '<form class="cost-add-form" id="pay-form" style="margin-top:14px">' +
+      '<input type="date" name="date" value="' + todayISO() + '">' +
+      '<input type="text" class="rp" name="amount" inputmode="numeric" placeholder="Nominal Rp">' +
+      '<select name="method"><option value="tunai">Tunai</option><option value="transfer">Transfer</option><option value="dp">DP</option><option value="kredit">Kredit</option></select>' +
+      '<input type="text" name="note" placeholder="Catatan" style="grid-column:1/-1;margin-top:2px">' +
+      '<button type="submit" class="btn primary sm" style="grid-column:1/-1">' + ic('plus', 14) + ' Catat Pembayaran</button>' +
+      '</form>' : '') +
+    '<div class="m-actions"><button class="btn yellow sm" id="pay-print">' + ic('printer', 15) + ' Cetak Invoice</button></div>',
+    { wide: true });
+
+  $('#pay-print', ov).addEventListener('click', () => printInvoice(inv));
+  $$('[data-pay-del]', ov).forEach((b) => b.addEventListener('click', async () => {
+    if (!(await confirmDlg('Hapus Pembayaran?', 'Catatan pembayaran ini akan dihapus dari invoice.'))) return;
+    try {
+      await API.del('/invoices/' + invId + '/payments/' + b.dataset.payDel);
+      toast('Pembayaran dihapus', 'ok');
+      closeModal(ov); paymentsManager(invId); go(S.page);
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+  const form = $('#pay-form', ov);
+  if (form) form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await API.post('/invoices/' + invId + '/payments',
+        { date: form.date.value, amount: parseRp(form.amount.value), method: form.method.value, note: form.note.value.trim() });
+      toast('Pembayaran tercatat 🎉', 'ok');
+      closeModal(ov); paymentsManager(invId); go(S.page);
+    } catch (err) { toast(err.message, 'err'); }
+  });
+}
+
+/* ---------- Ubah password sendiri ---------- */
+function changePasswordModal() {
+  const ov = openModal(
+    '<div class="m-head"><h3>Ubah Password Saya</h3><button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<form id="pw-form"><div class="alert error hidden" id="pw-err"></div>' +
+    '<label>Password Lama *</label><input type="password" name="old" autocomplete="current-password">' +
+    '<label>Password Baru *</label><input type="password" name="nw" autocomplete="new-password" placeholder="min. 5 karakter">' +
+    '<label>Ulangi Password Baru *</label><input type="password" name="nw2" autocomplete="new-password">' +
+    '<div class="m-actions"><button type="button" class="btn ghost" data-close>Batal</button><button type="submit" class="btn primary">Simpan Password</button></div></form>');
+  $('#pw-form', ov).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const errBox = $('#pw-err', ov);
+    if (f.nw.value !== f.nw2.value) {
+      errBox.textContent = 'Konfirmasi password baru tidak sama'; errBox.classList.remove('hidden'); return;
+    }
+    try {
+      await API.post('/auth/change-password', { oldPassword: f.old.value, newPassword: f.nw.value });
+      closeModal(ov); toast('Password berhasil diganti 🔒', 'ok');
+    } catch (err) { showFieldErrors(ov, err.data && err.data.errors, $('#pw-err', ov)); }
+  });
+}
+
+/* ---------- Ekspor CSV ---------- */
+async function downloadCsv(path, filename) {
+  try {
+    const res = await fetch('/api' + path, { headers: API.token ? { Authorization: 'Bearer ' + API.token } : {} });
+    if (!res.ok) { toast('Ekspor gagal (' + res.status + ')', 'err'); return; }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('File diunduh: ' + filename, 'ok');
+  } catch (err) { toast(err.message, 'err'); }
 }
 
 /* ============================================================

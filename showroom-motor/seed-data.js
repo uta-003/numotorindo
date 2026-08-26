@@ -23,6 +23,14 @@ const users = [
   mkUser('user-4', 'mekanik', 'mekanik123', 'Joko Prasetyo (Mekanik)', 'mekanik')
 ];
 
+/* komisi & target untuk sales */
+Object.assign(users.find((u) => u.role === 'sales'), { komisiPersen: 2.5, targetBulanan: 40000000 });
+
+const customers = [
+  { id: 'cust-1', name: 'Hendra Wijaya', phone: '0812-3344-5566', address: 'Jl. Kenanga No. 21, Depok', notes: 'Pelanggan tetap — minat motor matic', createdAt: '2026-06-28T06:30:00.000Z' },
+  { id: 'cust-2', name: 'Agus Salim', phone: '0857-1122-3344', address: 'Jl. Melati Raya No. 9, Bekasi', notes: '', createdAt: '2026-05-09T04:15:00.000Z' }
+];
+
 const units = [
   {
     id: 'unit-1', code: 'UM-0001',
@@ -128,6 +136,7 @@ units.push(
 const invoices = [
   {
     id: 'inv-1', number: 'INV/2026/06/0002', unitId: 'unit-2',
+    customerId: 'cust-1',
     snapshot: { name: 'Yamaha NMAX 155 Connected ABS', brand: 'Yamaha', year: 2021, cc: 155, color: 'Biru', nopol: 'B 5678 XYZ' },
     buyer: { name: 'Hendra Wijaya', phone: '0812-3344-5566', address: 'Jl. Kenanga No. 21, Depok' },
     sellPrice: 21500000, discount: 0, total: 21500000,
@@ -136,6 +145,7 @@ const invoices = [
   },
   {
     id: 'inv-2', number: 'INV/2026/05/0001', unitId: 'unit-6',
+    customerId: 'cust-2',
     snapshot: { name: 'Honda CB150 Verza', brand: 'Honda', year: 2018, cc: 150, color: 'Putih', nopol: 'B 7788 GHI' },
     buyer: { name: 'Agus Salim', phone: '0857-1122-3344', address: 'Jl. Melati Raya No. 9, Bekasi' },
     sellPrice: 14750000, discount: 250000, total: 14500000,
@@ -144,4 +154,29 @@ const invoices = [
   }
 ];
 
-module.exports = { users, units, invoices };
+module.exports = { users, customers, units, invoices };
+
+/* Enrichment: nomor rangka/mesin, jatuh tempo pajak & kelengkapan dokumen */
+(function enrichUnits() {
+  const meta = {
+    'unit-1': ['MHLCXB210K9A01234', 'JC39E-1023456', '2026-09-10', true, true, false],
+    'unit-2': ['MHJXB53C0KA123456', 'B5RE-9876543', '2027-01-20', true, true, true],
+    'unit-3': ['MHCF1B1234K9081721', 'F115-4567890', '2026-11-05', true, false, false],
+    'unit-4': ['MHJKVA52C0N0045678', 'K1ZT-1122334', '2027-02-15', true, true, false],
+    'unit-5': ['JKARXA2310K7011223', 'EX300E-7788990', '2026-08-30', true, true, false],
+    'unit-6': ['MHCB150BK8J9988776', 'C150RU-5566778', '2026-12-12', true, true, true]
+  };
+  units.forEach((u) => {
+    const m = meta[u.id];
+    if (!m) return;
+    u.noRangka = m[0]; u.noMesin = m[1]; u.pajakDue = m[2];
+    u.docs = { stnk: !!m[3], faktur: !!m[4], formA: !!m[5] };
+    u.photos = []; u.archived = false;
+  });
+  /* cicilan/riwayat pembayaran invoice */
+  invoices[0].payments = [{ id: 'pay-1', date: '2026-06-28', amount: 21500000, method: 'transfer', note: 'Pelunasan penuh' }];
+  invoices[1].payments = [
+    { id: 'pay-2', date: '2026-05-09', amount: 5000000, method: 'tunai', note: 'Uang muka (DP)' },
+    { id: 'pay-3', date: '2026-05-16', amount: 9500000, method: 'tunai', note: 'Pelunasan' }
+  ];
+})();

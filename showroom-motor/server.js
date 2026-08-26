@@ -15,6 +15,7 @@ require('./db').load(); // siapkan db.json (auto-seed saat pertama kali)
 
 const PORT = Number(process.argv[2] || process.env.PORT || 3100);
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const DATA_PHOTOS = path.join(__dirname, 'data', 'photos');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -69,6 +70,14 @@ const server = http.createServer((req, res) => {
       }
       return;
     }
+  }
+
+  /* ---------- Foto unit (showroom-motor/data/photos) ---------- */
+  if (url.pathname.startsWith('/photos/')) {
+    const photoFile = safeJoin(path.join(DATA_PHOTOS, decodeURIComponent(url.pathname.replace(/^\/photos/, ''))));
+    if (photoFile && fileExists(photoFile)) return sendFile(res, photoFile);
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Foto tidak ditemukan');
   }
 
   /* ---------- SPA statis di root ---------- */
