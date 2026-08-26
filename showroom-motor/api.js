@@ -112,7 +112,8 @@ function serializeUnit(u, viewer) {
   const t = calcTotals(u);
   const base = Object.assign({}, u, {
     repairCosts: u.repairCosts || [],
-    docCosts: u.docCosts || []
+    docCosts: u.docCosts || [],
+    bpkb: calcBpkb(u)
   });
   /* mekanik tidak melihat angka pembelian/harga/laba */
   if (viewer && viewer.role === 'mekanik') {
@@ -127,6 +128,51 @@ function serializeUnit(u, viewer) {
 
 function isoMonth(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+/* ---------- BPKB: hitungan hari kerja (Sabtu & Minggu libur) ---------- */
+function isoDay(d) {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+/* tambah `days` hari kerja dari tanggal mulai */
+function addWorkingDays(startISO, days) {
+  const d = new Date(startISO + 'T00:00:00');
+  let added = 0, guard = 0;
+  while (added < days && guard++ < 4000) {
+    d.setDate(d.getDate() + 1);
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) added++;
+  }
+  return isoDay(d);
+}
+
+/* selisih hari kerja antar dua tanggal (arah otomatis, hasil bisa negatif) */
+function workdaysBetween(aISO, bISO) {
+  const a = new Date(aISO + 'T00:00:00'), b = new Date(bISO + 'T00:00:00');
+  const forward = b >= a;
+  let n = 0, guard = 0;
+  const cur = new Date(a.getTime());
+  cur.setDate(cur.getDate() + (forward ? 1 : -1));
+  while ((forward ? cur <= b : cur >= b) && guard++ < 4000) {
+    const wd = cur.getDay();
+    if (wd !== 0 && wd !== 6) n++;
+    cur.setDate(cur.getDate() + (forward ? 1 : -1));
+  }
+  return forward ? n : -n;
+}
+
+/* ringkasan status BPKB sebuah unit */
+function calcBpkb(u) {
+  const days = Number(u.bpkbDays) || 0;
+  if (!days) return null;
+  const start = u.bpkbStart || u.purchaseDate || u.soldAt || isoDay(new Date());
+  const due = addWorkingDays(start, days);
+  const today = isoDay(new Date());
+  const remainWork = workdaysBetween(today, due);
+  const calLeft = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+  const status = calLeft < 0 ? 'terlambat' : (calLeft <= 7 ? 'kritis' : 'proses');
+  return { days, start, due, remainWork, calLeft, status };
 }
 
 /* ---------- Validator ---------- */
@@ -185,6 +231,14 @@ function validateUnit(raw, partial) {
   if (v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(new Date(v).getTime())) errors.purchaseDate = 'Format tanggal tidak valid'; else out.purchaseDate = v; }
 
   v = s('notes'); if (v) out.notes = v.slice(0, 500); else if (!partial) out.notes = '';
+
+  n = num('bpkbDays');
+  if (n === null) { if (!partial) out.bpkbDays = 0; }
+  else if ([7, 14, 21, 28].indexOf(n) < 0) errors.bpkbDays = 'Pilih 7, 14, 21, atau 28 hari kerja';
+  else out.bpkbDays = n;
+
+  v = s('bpkbStart');
+  if (v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(new Date(v).getTime())) errors.bpkbStart = 'Format tanggal tidak valid'; else out.bpkbStart = v; }
 
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, out };
 }
@@ -494,10 +548,10 @@ async function handleApi(req, res, url) {
         const b = await readBody(req);
         const v = validateUnit(b, true);
         if (!v.ok) return fail(res, 400, 'Validasi gagal', v.errors);
-        ['name', 'brand', 'type', 'color', 'transmisi', 'nopol', 'notes'].forEach((k) => {
+        ['name', 'brand', 'type', 'color', 'transmisi', 'nopol', 'notes', 'bpkbStart'].forEach((k) => {
           if (v.out[k] !== undefined && v.out[k] !== null) u[k] = v.out[k];
         });
-        ['year', 'km', 'cc', 'purchaseCost', 'sellPrice', 'purchaseDate'].forEach((k) => {
+        ['year', 'km', 'cc', 'purchaseCost', 'sellPrice', 'purchaseDate', 'bpkbDays'].forEach((k) => {
           if (v.out[k] !== undefined && v.out[k] !== null) u[k] = v.out[k];
         });
         if (b.status != null && b.status !== '') {

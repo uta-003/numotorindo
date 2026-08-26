@@ -442,6 +442,35 @@ async function pageDashboard() {
     cards.push(['yellow', 'wrench', fmtRp(repairThisMonth), 'Perbaikan Bulan Ini']);
   }
 
+  /* notifikasi BPKB: memasuki minggu terakhir (≤7 hari kalender) atau terlambat */
+  const bpkbAlerts = S.units
+    .filter((u) => u.bpkb && (u.bpkb.status === 'kritis' || u.bpkb.status === 'terlambat'))
+    .sort((a, b) => a.bpkb.calLeft - b.bpkb.calLeft);
+  let bpkbBanner = '';
+  if (bpkbAlerts.length) {
+    bpkbBanner =
+      '<div class="card bpkb-alert">' +
+      '<h3>' + ic('alert', 18) + ' Notifikasi BPKB — ' + bpkbAlerts.length + ' unit perlu perhatian</h3>' +
+      '<div class="bpkb-list">' +
+      bpkbAlerts.map((u) => {
+        const b = u.bpkb;
+        const late = b.status === 'terlambat';
+        const sisa = late
+          ? 'Terlambat ' + Math.abs(b.remainWork) + ' HK'
+          : (b.remainWork === 0 ? 'Jatuh tempo HARI INI' : 'Sisa ' + b.remainWork + ' HK');
+        return '<button type="button" class="bpkb-row" data-bpkb-unit="' + u.id + '">' +
+          '<span class="mono">' + esc(u.code) + '</span>' +
+          '<strong>' + esc(u.name) + '</strong>' +
+          '<span class="bpkb-due ' + (late ? 'late' : 'soon') + '">Jtempo ' + fmtDate(b.due) + '</span>' +
+          '<span class="bpkb-sisa">' + sisa + '</span>' +
+          '<span class="badge bpkb-' + (late ? 'terlambat' : 'kritis') + '">' + b.days + ' HK</span>' +
+          '</button>';
+      }).join('') +
+      '</div>' +
+      '<p class="bpkb-hint">Hitungan hari kerja — Sabtu &amp; Minggu tidak dihitung. Muncul setiap hari sampai BPKB diselesaikan. Klik baris untuk detail unit.</p>' +
+      '</div>';
+  }
+
   /* aksi cepat */
   let quick = '<div class="quick-actions">';
   if (S.perm.manageUnits) quick += '<button class="btn primary" data-qa="unit">' + ic('plus', 16) + ' Tambah Unit</button>';
@@ -453,6 +482,7 @@ async function pageDashboard() {
   c.innerHTML =
     '<h2 style="color:var(--navy);margin-bottom:6px"><span class="greet-emoji">' + greetingEmoji() + '</span> ' + greeting() + ', ' + esc(S.user.name.split('(')[0].trim()) + ' 👋</h2>' +
     '<p style="color:var(--muted);font-size:.9rem;margin-bottom:20px">' + (ROLE_LABEL[S.user.role] || '') + ' · Berikut ringkasan showroom Anda.</p>' +
+    bpkbBanner +
     quick +
     '<div class="stats">' + cards.map(([col, icon, val, lbl]) =>
       '<div class="stat-card"><div class="stat-ico ' + col + '">' + ic(icon, 22) + '</div>' +
@@ -469,6 +499,7 @@ async function pageDashboard() {
     else if (act === 'inv') invoiceCreate();
     else if (act === 'rep') go('reports');
   }));
+  $$('[data-bpkb-unit]').forEach((el) => el.addEventListener('click', () => unitDetail(el.dataset.bpkbUnit)));
 }
 
 function unitRecentHTML() {
@@ -503,6 +534,21 @@ function emptyRow(cols) { return '<tr><td colspan="' + cols + '" style="text-ali
 
 function statusBadge(st) { return '<span class="badge ' + esc(st) + '">' + esc(st.charAt(0).toUpperCase() + st.slice(1)) + '</span>'; }
 function fin(x) { return x; }
+
+/* ---------- BPKB helpers ---------- */
+function bpkbClassOf(status) {
+  return status === 'terlambat' ? 'terlambat' : (status === 'kritis' ? 'kritis' : 'proses');
+}
+function bpkbCellHTML(bp) {
+  if (!bp) return '<span class="cell-sub">—</span>';
+  const cls = bpkbClassOf(bp.status);
+  const sisa = bp.status === 'terlambat'
+    ? 'Terlambat ' + Math.abs(bp.remainWork) + ' HK'
+    : (bp.remainWork === 0 ? 'Jatuh tempo HARI INI' : 'Sisa ' + bp.remainWork + ' HK');
+  return '<span class="badge bpkb-' + cls + '">' + bp.days + ' HK</span>' +
+    '<div class="cell-sub ' + (cls !== 'proses' ? 'due-red' : '') + '">Jtempo ' + fmtDate(bp.due) + '</div>' +
+    '<div class="cell-sub">' + sisa + '</div>';
+}
 
 /* ============================================================
    Halaman: Data Unit
@@ -539,7 +585,7 @@ async function pageUnits() {
 
     let head = '<tr><th>Kode</th><th>Motor</th><th>Nopol</th>';
     if (showFin) head += '<th style="text-align:right">Total Modal</th><th style="text-align:right">Harga Jual</th>';
-    head += '<th>Status</th>';
+    head += '<th>BPKB</th><th>Status</th>';
     if (showFin) head += '<th style="text-align:right">Laba / Rugi</th>';
     head += '<th style="text-align:right">Aksi</th></tr>';
 
@@ -554,7 +600,8 @@ async function pageUnits() {
           '<div class="cell-sub num">Beli ' + fmtRp(t.purchase) + ' + Perbaikan ' + fmtRp(t.repair) + ' + Dokumen ' + fmtRp(t.doc) + '</div></td>' +
           '<td style="text-align:right" class="num"><b>' + (t.sellPrice != null ? fmtRp(t.sellPrice) : '•••') + '</b></td>';
       }
-      row += '<td>' + statusBadge(u.status) + '</td>';
+      row += '<td>' + statusBadge(u.status) + '</td>' +
+        '<td>' + bpkbCellHTML(u.bpkb) + '</td>';
       if (showFin) {
         const cls = t.profit >= 0 ? 'up' : 'down';
         const sign = t.profit >= 0 ? '+' : '';
@@ -571,7 +618,7 @@ async function pageUnits() {
 
     $('#u-table').innerHTML =
       '<div class="table-wrap"><table class="data"><thead>' + head + '</thead><tbody>' +
-      (rows || emptyRow(showFin ? 7 : 4)) + '</tbody></table></div>';
+      (rows || emptyRow(showFin ? 8 : 5)) + '</tbody></table></div>';
 
     $$('tr[data-detail]').forEach((tr) => tr.addEventListener('click', (e) => {
       if (e.target.closest('[data-act]')) return;
@@ -687,6 +734,14 @@ function unitForm(unit) {
         '<option value="terjual"' + (isEdit && unit.status === 'terjual' ? ' selected' : '') + '>Terjual</option>' +
       '</select></div>' +
     '</div>' +
+    '<div class="form-grid">' +
+      '<div><label>Proses BPKB</label><select name="bpkbDays">' +
+        '<option value="0"' + (!isEdit || !unit.bpkbDays ? ' selected' : '') + '>— Belum diproses —</option>' +
+        [7, 14, 21, 28].map((d) => '<option value="' + d + '"' + (isEdit && unit.bpkbDays === d ? ' selected' : '') + '>' + d + ' Hari Kerja</option>').join('') +
+      '</select></div>' +
+      '<div><label>Mulai Proses BPKB</label><input type="date" name="bpkbStart" value="' + (isEdit ? (unit.bpkbStart || unit.purchaseDate || todayISO()) : todayISO()) + '"></div>' +
+    '</div>' +
+    '<p class="hint-bpkb">' + ic('info', 13) + ' Hitungan hari kerja — Sabtu &amp; Minggu tidak dihitung. Notifikasi muncul otomatis saat memasuki minggu terakhir / terlambat.</p>' +
     costBoxHTML('repair', isEdit ? (unit.repairCosts || []) : []) +
     costBoxHTML('doc', isEdit ? (unit.docCosts || []) : []) +
     '<label>Catatan Kondisi</label><textarea name="notes" placeholder="Catatan kondisi unit…">' + esc(isEdit ? (unit.notes || '') : '') + '</textarea>' +
@@ -715,6 +770,8 @@ function unitForm(unit) {
       purchaseCost: parseRp(f.purchaseCost.value), purchaseDate: f.purchaseDate.value,
       sellPrice: parseRp(f.sellPrice.value),
       status: f.status.value,
+      bpkbDays: parseInt(f.bpkbDays.value, 10) || 0,
+      bpkbStart: f.bpkbStart.value,
       repairCosts: collectCostRows($('[data-cf="repair"]', ov)),
       docCosts: collectCostRows($('[data-cf="doc"]', ov)),
       notes: f.notes.value.trim()
@@ -779,6 +836,14 @@ async function unitDetail(id) {
         infoItem('No. Polisi', esc(u.nopol || '—')) +
         (!isMek ? infoItem('Tanggal Beli', fmtDate(u.purchaseDate)) : '') +
         (!isMek && u.status === 'terjual' ? infoItem('Terjual', fmtDate(u.soldAt)) : '') +
+        (u.bpkb
+          ? infoItem('BPKB', '<span class="badge bpkb-' + bpkbClassOf(u.bpkb.status) + '" style="font-size:.8rem">' + u.bpkb.days + ' HK</span>') +
+            infoItem('BPKB Mulai Proses', fmtDate(u.bpkb.start)) +
+            infoItem('BPKB Jatuh Tempo', '<span class="' + (u.bpkb.status !== 'proses' ? 'due-red' : '') + '">' + fmtDate(u.bpkb.due) + '</span>') +
+            infoItem('Posisi BPKB', u.bpkb.status === 'terlambat'
+              ? '<span class="due-red">Terlambat ' + Math.abs(u.bpkb.remainWork) + ' HK</span>'
+              : (u.bpkb.remainWork === 0 ? '<span class="due-red">Jatuh tempo hari ini</span>' : 'Sisa ' + u.bpkb.remainWork + ' HK'))
+          : infoItem('BPKB', '—')) +
         '</div>' +
         (u.notes ? '<label style="margin-top:18px">Catatan</label><p style="font-size:.9rem;color:var(--muted);line-height:1.6">' + esc(u.notes) + '</p>' : '') +
         (S.perm.manageUnits ? '<div class="m-actions"><button class="btn navy sm" id="ud-edit">' + ic('pencil', 15) + ' Edit Data Unit</button></div>' : '');

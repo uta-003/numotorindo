@@ -30,6 +30,7 @@ const units = [
     year: 2020, km: 15430, cc: 110, transmisi: 'Otomatis', color: 'Merah',
     nopol: 'B 3421 KQA',
     purchaseCost: 7150000, purchaseDate: '2026-06-02',
+    bpkbDays: 21, bpkbStart: '2026-06-02',
     repairCosts: [
       mkCost('cost-1', 'Servis besar + ganti oli, filter, busi', 385000, '2026-06-03'),
       mkCost('cost-2', 'Ganti kampas rem depan & belakang', 175000, '2026-06-03')
@@ -83,6 +84,7 @@ units.push(
     year: 2023, km: 5120, cc: 125, transmisi: 'Otomatis', color: 'Merah Matte',
     nopol: 'B 9876 PQR',
     purchaseCost: 17400000, purchaseDate: '2026-07-01',
+    bpkbDays: 14, bpkbStart: '2026-08-10',
     repairCosts: [],
     docCosts: [mkCost('cost-13', 'Balik nama (BBN) Samsat', 350000, '2026-07-03')],
     sellPrice: 19900000, status: 'booking', notes: 'DP diterima, menunggu pelunasan.',

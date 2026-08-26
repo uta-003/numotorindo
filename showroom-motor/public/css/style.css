@@ -320,6 +320,40 @@ table.data tfoot td { padding: 13px 16px; background: #f7fafc; font-weight: 800;
 .profit-chip.down { color: var(--red); }
 .mono { font-family: Consolas, monospace; font-size: .8rem; color: var(--muted); }
 
+/* ---------- BPKB ---------- */
+.badge.bpkb-proses   { background: #e3edf5; color: var(--navy); }
+.badge.bpkb-kritis   { background: #fef0e0; color: var(--orange); }
+.badge.bpkb-terlambat{ background: var(--red); color: #fff; }
+.badge.bpkb-terlambat::before { background: #fff; }
+.due-red { color: var(--red) !important; font-weight: 800; }
+.hint-bpkb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .76rem; color: var(--muted); margin-top: 8px;
+}
+.card.bpkb-alert { border-left: 4px solid var(--red); margin-bottom: 20px; animation: bpkbPulse .5s ease; }
+@keyframes bpkbPulse { from { transform: translateY(-6px); opacity: 0 } to { transform: none; opacity: 1 } }
+.bpkb-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.bpkb-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: #fbfcfe; cursor: pointer; font-family: inherit; font-size: .86rem;
+  text-align: left; width: 100%; transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.bpkb-row:hover {
+  border-color: var(--orange); transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(247,127,0,.15);
+}
+.bpkb-row strong { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bpkb-due { font-weight: 800; white-space: nowrap; }
+.bpkb-due.late { color: var(--red); }
+.bpkb-due.soon { color: var(--orange); }
+.bpkb-sisa { color: var(--muted); white-space: nowrap; font-size: .8rem; }
+.bpkb-hint { font-size: .74rem; color: var(--muted); margin-top: 12px; }
+@media (max-width: 900px) {
+  .bpkb-row { flex-wrap: wrap; gap: 6px 12px; row-gap: 4px; }
+  .bpkb-row strong { flex-basis: calc(100% - 90px); }
+}
+
 /* ---------- Modal ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 100; background: rgba(2, 26, 40, .55);
