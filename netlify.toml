@@ -1,0 +1,8 @@
+[build]
+  publish = "showroom-motor/public"
+
+# SPA fallback: semua path tak dikenal kembali ke index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

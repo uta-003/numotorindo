@@ -5,6 +5,14 @@
 
 window.API = {
   token: localStorage.getItem('sm_token') || null,
+  mode: 'remote',
+
+  use(impl) {
+    this.mode = impl.mode || 'demo';
+    ['get', 'post', 'put', 'patch', 'del'].forEach((k) => {
+      this[k] = function () { return impl[k].apply(impl, arguments); };
+    });
+  },
 
   setToken(tok) {
     this.token = tok;

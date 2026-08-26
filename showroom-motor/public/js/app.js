@@ -1842,6 +1842,19 @@ function changePasswordModal() {
 
 /* ---------- Ekspor CSV ---------- */
 async function downloadCsv(path, filename) {
+  /* Mode demo (Netlify/statis): generate CSV di browser */
+  if (API.mode === 'demo') {
+    try {
+      const r = await API.get(path);
+      const blob = new Blob([r.__csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('File diunduh: ' + filename, 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+    return;
+  }
   try {
     const res = await fetch('/api' + path, { headers: API.token ? { Authorization: 'Bearer ' + API.token } : {} });
     if (!res.ok) { toast('Ekspor gagal (' + res.status + ')', 'err'); return; }
