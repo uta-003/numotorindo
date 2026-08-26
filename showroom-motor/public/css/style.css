@@ -407,7 +407,7 @@ table.data tfoot td { padding: 13px 16px; background: #f7fafc; font-weight: 800;
 /* ---------- Mobile polish kekinian ---------- */
 @media (max-width: 900px) {
   /* hero sapaan lebih ringkas */
-  .hero-greet { padding: 18px 18px 16px; border-radius: 18px; margin-bottom: 16px; }
+  .hero-greet { padding: 18px 18px 16px; border-radius: 18px; margin-bottom: 14px; }
   .hero-greet h2 { font-size: 1.08rem; }
   .hero-greet p { font-size: .8rem; }
 
@@ -418,7 +418,7 @@ table.data tfoot td { padding: 13px 16px; background: #f7fafc; font-weight: 800;
     gap: 8px; padding: 14px 14px 12px; border-radius: 18px;
   }
   .stat-ico { width: 42px; height: 42px; border-radius: 13px; }
-  .stat-val { font-size: 1.02rem; line-height: 1.2; word-break: break-word; }
+  .stat-val { font-size: 1rem; line-height: 1.2; word-break: break-word; }
   .stat-lbl { font-size: .7rem; }
 
   /* kartu lebih membulat & lega */
@@ -438,21 +438,87 @@ table.data tfoot td { padding: 13px 16px; background: #f7fafc; font-weight: 800;
   /* galeri foto 2 kolom */
   .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  /* modal lebih presisi */
-  .modal { border-radius: 22px; padding: 20px 18px; }
-  .overlay { padding: 16px 10px calc(96px + env(safe-area-inset-bottom)); }
-  .m-actions { flex-wrap: wrap; }
-  .m-actions .btn { flex: 1 1 auto; min-width: 120px; }
+  /* modal jadi bottom-sheet */
+  .overlay {
+    padding: 0; align-items: flex-end;
+    background: rgba(0,20,30,.6); backdrop-filter: blur(3px);
+  }
+  .modal {
+    border-radius: 24px 24px 0 0; max-width: 100%; width: 100%;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    animation: sheetUp .35s cubic-bezier(.32,1.25,.6,1);
+    max-height: 92vh; overflow-y: auto;
+  }
+  .overlay.wide .modal { max-width: 100%; }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); opacity: .7 }
+    to   { transform: none; opacity: 1 }
+  }
+  .m-head h3 { font-size: 1.05rem; }
+  .m-actions { position: sticky; bottom: 0; background: var(--card); padding: 10px 0 4px; margin-top: 12px !important; }
+  .m-actions .btn { flex: 1; min-height: 44px; }
 
-  /* tabel tetap enak dibaca */
-  table.data { font-size: .84rem; }
-  .cell-actions .icon-btn { width: 34px; height: 34px; }
+  /* form grid tetap stack */
+  .form-grid, .grid-2, .sum-grid { grid-template-columns: 1fr; }
+
+  /* ===== TABEL → KARTU ===== */
+  .table-wrap { overflow-x: visible; border: none; box-shadow: none; background: transparent; padding: 0; }
+  table.data { min-width: unset !important; }
+  table.data thead { display: none !important; }
+  table.data tbody { display: flex; flex-direction: column; gap: 10px; }
+  table.data tbody tr {
+    display: block; background: var(--card); border-radius: 16px;
+    padding: 14px; box-shadow: var(--shadow);
+    border: 1px solid rgba(228,234,241,.5);
+    cursor: default; transition: transform .15s;
+  }
+  table.data tbody tr:active { transform: scale(.98); }
+  table.data td {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 1px solid rgba(228,234,241,.5);
+    text-align: right !important; font-size: .84rem; gap: 10px;
+  }
+  table.data td:last-child { border-bottom: none; padding-top: 8px; }
+  table.data td:first-child { padding-top: 0; }
+  table.data td::before {
+    content: ''; flex-shrink: 0;
+  }
+  table.data td .cell-main { text-align: left; }
+  table.data td[style*="text-align:right"] .num,
+  table.data td[style*="text-align:right"] b { text-align: right; }
+  table.data tfoot { display: none; }
+
+  /* toolbar & search */
+  #content { padding: 16px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .search-box { min-width: unset; max-width: none; flex: 1 1 100%; }
+  .toolbar > .btn { width: 100%; min-height: 44px; }
+  .filter { min-height: 42px; }
+
+  /* section head */
+  .section-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .section-head > div:last-child,
+  .section-head > input, .section-head > button { width: 100%; }
+
+  /* tombol aksi cepat penuh */
+  .quick-actions { flex-direction: column; }
+  .quick-actions .btn { min-height: 48px; }
 
   /* status BPKB box 2 kolom */
   .bpkb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  /* dock bawah sedikit lebih tinggi agar label lega */
-  #bottom-nav { padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); border-radius: 24px; max-width: 430px; }
+  /* galeri foto 2 kolom */
+  .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-item { border-radius: 14px; }
+
+  /* dock navigasi bawah */
+  #bottom-nav {
+    padding: 5px 5px calc(5px + env(safe-area-inset-bottom));
+    border-radius: 26px; max-width: calc(100% - 16px);
+    bottom: 10px;
+  }
+  .bnav-item { gap: 3px; padding: 8px 0 6px; }
+  .bnav-lbl { font-size: .58rem; }
 }
 
 /* ---------- Chip dokumen & galeri foto ---------- */

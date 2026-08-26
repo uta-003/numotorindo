@@ -353,15 +353,16 @@ function bootApp() {
     nav.appendChild(b);
   });
 
-  /* bottom navigation — tampilan mobile */
+    /* bottom navigation — hanya 4 item utama di mobile */
   const bnav = $('#bottom-nav');
   if (bnav) {
+    const BNAV_KEYS = ['dashboard', 'units', 'invoices', 'reports'];
     bnav.innerHTML = '';
-    items.forEach((n) => {
+    items.filter((n) => BNAV_KEYS.includes(n.key)).forEach((n) => {
       const b = document.createElement('button');
       b.className = 'bnav-item';
       b.dataset.page = n.key;
-      b.innerHTML = '<span class="bnav-ico">' + ic(n.icon, 19) + '</span><span class="bnav-lbl">' + n.label + '</span>';
+      b.innerHTML = '<span class="bnav-ico">' + ic(n.icon, 20) + '</span><span class="bnav-lbl">' + n.label + '</span>';
       b.addEventListener('click', () => go(n.key));
       bnav.appendChild(b);
     });
