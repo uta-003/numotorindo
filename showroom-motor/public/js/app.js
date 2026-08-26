@@ -474,32 +474,49 @@ async function pageDashboard() {
     cards.push(['yellow', 'wrench', fmtRp(repairThisMonth), 'Perbaikan Bulan Ini']);
   }
 
-  /* notifikasi BPKB: memasuki minggu terakhir (≤7 hari kalender) atau terlambat */
-  const bpkbAlerts = S.units
-    .filter((u) => u.bpkb && (u.bpkb.status === 'kritis' || u.bpkb.status === 'terlambat'))
-    .sort((a, b) => a.bpkb.calLeft - b.bpkb.calLeft);
+  /* kartu Status BPKB: ringkasan semua unit yang diproses + notifikasi urgensi */
+  const tracked = S.units.filter((u) => u.bpkb);
+  const orderMap = { terlambat: 0, kritis: 1, proses: 2, siap: 3 };
+  tracked.sort((a, b) =>
+    (orderMap[a.bpkb.status] - orderMap[b.bpkb.status]) ||
+    ((a.bpkb.calLeft == null ? 999 : a.bpkb.calLeft) - (b.bpkb.calLeft == null ? 999 : b.bpkb.calLeft)));
+  const cntB = { siap: 0, proses: 0, kritis: 0, terlambat: 0 };
+  tracked.forEach((u) => { cntB[u.bpkb.status]++; });
+  const urgentN = cntB.kritis + cntB.terlambat;
   let bpkbBanner = '';
-  if (bpkbAlerts.length) {
+  if (tracked.length) {
+    const bsBox = (cls, n, lbl) =>
+      '<div class="bs-box bs-' + cls + (n ? ' has' : ' zero') + '"><b class="num">' + n + '</b><span>' + lbl + '</span></div>';
     bpkbBanner =
-      '<div class="card bpkb-alert">' +
-      '<h3>' + ic('alert', 18) + ' Notifikasi BPKB — ' + bpkbAlerts.length + ' unit perlu perhatian</h3>' +
+      '<div class="card bpkb-status-card' + (urgentN ? ' has-urgent' : '') + '">' +
+      '<h3>' + ic('doc', 18) + ' Status BPKB Unit</h3>' +
+      '<div class="bpkb-stats">' +
+        bsBox('siap', cntB.siap, 'Siap Diambil') +
+        bsBox('proses', cntB.proses, 'Diproses') +
+        bsBox('kritis', cntB.kritis, '≤ 7 Hari') +
+        bsBox('terlambat', cntB.terlambat, 'Terlambat') +
+      '</div>' +
+      (urgentN ? '<p class="bpkb-urgent">🔔 ' + urgentN + ' unit memasuki minggu terakhir / terlambat — segera tindak lanjuti!</p>' : '') +
       '<div class="bpkb-list">' +
-      bpkbAlerts.map((u) => {
+      tracked.map((u) => {
         const b = u.bpkb;
+        const cls = bpkbClassOf(b.status);
         const late = b.status === 'terlambat';
-        const sisa = late
-          ? 'Terlambat ' + Math.abs(b.remainWork) + ' HK'
+        const sisa = b.status === 'siap'
+          ? 'Diambil ' + fmtDate(b.readyAt)
+          : late ? 'Terlambat ' + Math.abs(b.remainWork) + ' HK'
           : (b.remainWork === 0 ? 'Jatuh tempo HARI INI' : 'Sisa ' + b.remainWork + ' HK');
-        return '<button type="button" class="bpkb-row" data-bpkb-unit="' + u.id + '">' +
+        return '<button type="button" class="bpkb-row st-' + cls + '" data-bpkb-unit="' + u.id + '">' +
           '<span class="mono">' + esc(u.code) + '</span>' +
           '<strong>' + esc(u.name) + '</strong>' +
-          '<span class="bpkb-due ' + (late ? 'late' : 'soon') + '">Jtempo ' + fmtDate(b.due) + '</span>' +
+          '<span class="bpkb-due ' + (late ? 'late' : (b.status === 'kritis' ? 'soon' : '')) + '">' +
+            (b.status === 'siap' ? '✓ Siap' : 'Jtempo ' + fmtDate(b.due)) + '</span>' +
           '<span class="bpkb-sisa">' + sisa + '</span>' +
-          '<span class="badge bpkb-' + (late ? 'terlambat' : 'kritis') + '">' + b.days + ' HK</span>' +
+          '<span class="badge bpkb-' + cls + '">' + b.days + ' HK</span>' +
           '</button>';
       }).join('') +
       '</div>' +
-      '<p class="bpkb-hint">Hitungan hari kerja — Sabtu &amp; Minggu tidak dihitung. Muncul setiap hari sampai BPKB diselesaikan. Klik baris untuk detail unit.</p>' +
+      '<p class="bpkb-hint">Hitungan hari kerja — Sabtu, Minggu &amp; libur nasional tidak dihitung. Muncul setiap hari sampai BPKB diambil. Klik baris untuk detail unit.</p>' +
       '</div>';
   }
 
@@ -512,8 +529,10 @@ async function pageDashboard() {
   quick += '</div>';
 
   c.innerHTML =
-    '<h2 style="color:var(--navy);margin-bottom:6px"><span class="greet-emoji">' + greetingEmoji() + '</span> ' + greeting() + ', ' + esc(S.user.name.split('(')[0].trim()) + ' 👋</h2>' +
-    '<p style="color:var(--muted);font-size:.9rem;margin-bottom:20px">' + (ROLE_LABEL[S.user.role] || '') + ' · Berikut ringkasan showroom Anda.</p>' +
+    '<div class="hero-greet"><div class="hg-txt">' +
+      '<h2><span class="greet-emoji">' + greetingEmoji() + '</span> ' + greeting() + ', ' + esc(S.user.name.split('(')[0].trim()) + ' 👋</h2>' +
+      '<p>' + (ROLE_LABEL[S.user.role] || '') + ' · Berikut ringkasan showroom Anda.</p>' +
+    '</div></div>' +
     bpkbBanner +
     quick +
     '<div class="stats">' + cards.map(([col, icon, val, lbl]) =>
@@ -987,8 +1006,13 @@ async function unitDetail(id) {
         try {
           const upd = await API.patch('/units/' + u.id, { bpkbReady: u.bpkb.status !== 'siap' });
           Object.assign(u, upd);
+          /* sinkronkan juga cache daftar unit agar tabel/dashboard langsung berubah */
+          const su = S.units.find((x) => x.id === u.id);
+          if (su) Object.assign(su, upd);
           toast(u.bpkb && u.bpkb.status === 'siap' ? 'BPKB ditandai SIAP 🎉 Notifikasi berhenti.' : 'Status BPKB dikembalikan ke proses.', 'ok');
           renderTab('info');
+          /* segarkan halaman di belakang modal tanpa menutupnya */
+          try { go(S.page); } catch (e2) {}
         } catch (err) { toast(err.message, 'err'); }
       });
       /* toggle kelengkapan dokumen */
