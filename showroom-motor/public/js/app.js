@@ -69,6 +69,51 @@ function greetingEmoji() {
   return '🌙';
 }
 
+/* ---------- Tema warna ---------- */
+const THEMES = [
+  { id: 'klasik', name: 'Klasik', c: ['#003049', '#D62828', '#F77F00', '#FCBF49'] },
+  { id: 'hutan', name: 'Hutan', c: ['#04382b', '#0f9d76', '#2dd4bf', '#99f6e4'] },
+  { id: 'galaksi', name: 'Galaksi', c: ['#241056', '#7c3aed', '#a855f7', '#e9d5ff'] },
+  { id: 'samudra', name: 'Samudra', c: ['#082f49', '#0284c7', '#38bdf8', '#bae6fd'] },
+  { id: 'senja', name: 'Senja', c: ['#431407', '#ea580c', '#f59e0b', '#fed7aa'] },
+  { id: 'sakura', name: 'Sakura', c: ['#4c0519', '#e11d48', '#fb7185', '#fecdd3'] }
+];
+
+function applySavedTheme() {
+  const t = localStorage.getItem('sm_color') || 'klasik';
+  if (t && t !== 'klasik') document.documentElement.setAttribute('data-theme', t);
+  else document.documentElement.removeAttribute('data-theme');
+}
+
+function currentThemeName() {
+  const t = localStorage.getItem('sm_color') || 'klasik';
+  return (THEMES.find((x) => x.id === t) || THEMES[0]).name;
+}
+
+function openThemePicker() {
+  const cur = localStorage.getItem('sm_color') || 'klasik';
+  const ov = openModal(
+    '<div class="m-head"><div><h3>Pilih Tema Warna</h3>' +
+    '<p class="m-sub">Langsung diterapkan &amp; tersimpan di perangkat ini.</p></div>' +
+    '<button class="icon-btn" data-close>' + ic('x') + '</button></div>' +
+    '<div class="theme-grid">' +
+    THEMES.map((t) => {
+      const act = (t.id || 'klasik') === cur;
+      return '<button type="button" class="theme-card' + (act ? ' active' : '') + '" data-th="' + t.id + '">' +
+        '<span class="sw-row">' + t.c.map((c) => '<i style="background:' + c + '"></i>').join('') + '</span>' +
+        '<strong>' + (act ? ic('check', 13) : '') + t.name + '</strong>' +
+        '</button>';
+    }).join('') +
+    '</div>');
+  $$('.theme-card', ov).forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.th || 'klasik';
+    localStorage.setItem('sm_color', id);
+    applySavedTheme();
+    closeModal(ov);
+    toast('Tema "' + currentThemeName() + '" diterapkan 🎨', 'ok');
+  }));
+}
+
 function initials(name) {
   return String(name || '?').split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
 }
@@ -120,6 +165,7 @@ const ICONS = {
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  palette: '<circle cx="13.5" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".7" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".7" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
@@ -342,22 +388,12 @@ function bootApp() {
     setBurgerIcon();
   });
 
-  /* mode gelap / terang */
+  /* pemilih tema warna */
   const themeBtn = $('#btn-theme');
-  const applyThemeIcon = () => {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    themeBtn.innerHTML = ic(dark ? 'sun' : 'moon', 18);
-    themeBtn.title = dark ? 'Mode terang' : 'Mode gelap';
-  };
-  if (localStorage.getItem('sm_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-  applyThemeIcon();
-  themeBtn.addEventListener('click', () => {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    if (dark) document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', 'dark');
-    localStorage.setItem('sm_theme', dark ? 'light' : 'dark');
-    applyThemeIcon();
-  });
+  themeBtn.innerHTML = ic('palette', 19);
+  themeBtn.title = 'Pilih tema warna';
+  applySavedTheme();
+  themeBtn.addEventListener('click', () => openThemePicker());
 
   /* ubah password sendiri */
   const lockBtn = $('#btn-lock');
