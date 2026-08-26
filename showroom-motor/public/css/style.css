@@ -325,6 +325,8 @@ table.data tfoot td { padding: 13px 16px; background: #f7fafc; font-weight: 800;
 .badge.bpkb-kritis   { background: #fef0e0; color: var(--orange); }
 .badge.bpkb-terlambat{ background: var(--red); color: #fff; }
 .badge.bpkb-terlambat::before { background: #fff; }
+.badge.bpkb-siap     { background: var(--green-bg); color: var(--green); }
+.badge.bpkb-terlambat::before { background: #fff; }
 .due-red { color: var(--red) !important; font-weight: 800; }
 .hint-bpkb {
   display: flex; align-items: center; gap: 6px;

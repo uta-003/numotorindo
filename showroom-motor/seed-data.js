@@ -48,6 +48,7 @@ const units = [
     year: 2021, km: 9870, cc: 155, transmisi: 'Otomatis', color: 'Biru',
     nopol: 'B 5678 XYZ',
     purchaseCost: 18500000, purchaseDate: '2026-05-12',
+    bpkbDays: 14, bpkbStart: '2026-05-12', bpkbReady: true, bpkbReadyAt: '2026-06-20',
     repairCosts: [
       mkCost('cost-5', 'Ganti ban belakang IRC NR53', 475000, '2026-05-14'),
       mkCost('cost-6', 'Ganti aki GS Astra 5Ah', 320000, '2026-05-14')
@@ -110,6 +111,7 @@ units.push(
     year: 2018, km: 31240, cc: 150, transmisi: 'Manual 6', color: 'Putih',
     nopol: 'B 7788 GHI',
     purchaseCost: 12100000, purchaseDate: '2026-03-15',
+    bpkbDays: 21, bpkbStart: '2026-03-15', bpkbReady: true, bpkbReadyAt: '2026-04-08',
     repairCosts: [
       mkCost('cost-17', 'Ganti rantai-gir set', 395000, '2026-03-18'),
       mkCost('cost-18', 'Service mesin + ganti oli', 260000, '2026-03-18')

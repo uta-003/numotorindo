@@ -541,6 +541,10 @@ function bpkbClassOf(status) {
 }
 function bpkbCellHTML(bp) {
   if (!bp) return '<span class="cell-sub">—</span>';
+  if (bp.status === 'siap') {
+    return '<span class="badge bpkb-siap">SIAP</span>' +
+      '<div class="cell-sub">Diambil ' + fmtDate(bp.readyAt) + '</div>';
+  }
   const cls = bpkbClassOf(bp.status);
   const sisa = bp.status === 'terlambat'
     ? 'Terlambat ' + Math.abs(bp.remainWork) + ' HK'
@@ -605,7 +609,7 @@ async function pageUnits() {
       if (showFin) {
         const cls = t.profit >= 0 ? 'up' : 'down';
         const sign = t.profit >= 0 ? '+' : '';
-        row += '<td style="text-align:right"><span class="profit-chip ' + cls + ' num">' + sign + fmtRp(t.profit).replace('Rp ', '') +
+        row += '<td style="text-align:right" title="Rumus: Harga jual ' + fmtRp(t.sellPrice) + ' − (Pembelian ' + fmtRp(t.purchase) + ' + Perbaikan ' + fmtRp(t.repair) + ' + Dokumen ' + fmtRp(t.doc) + ') = ' + (t.profit >= 0 ? 'Laba ' : 'Rugi ') + fmtRp(Math.abs(t.profit)) + '"><span class="profit-chip ' + cls + ' num">' + sign + fmtRp(Math.abs(t.profit)).replace('Rp ', '') +
           '</span><div class="cell-sub num">' + (t.margin != null ? t.margin + '% margin' : '') + '</div></td>';
       }
       row += '<td><div class="cell-actions">' +
@@ -741,7 +745,7 @@ function unitForm(unit) {
       '</select></div>' +
       '<div><label>Mulai Proses BPKB</label><input type="date" name="bpkbStart" value="' + (isEdit ? (unit.bpkbStart || unit.purchaseDate || todayISO()) : todayISO()) + '"></div>' +
     '</div>' +
-    '<p class="hint-bpkb">' + ic('info', 13) + ' Hitungan hari kerja — Sabtu &amp; Minggu tidak dihitung. Notifikasi muncul otomatis saat memasuki minggu terakhir / terlambat.</p>' +
+    '<p class="hint-bpkb">' + ic('info', 13) + ' Hitungan hari kerja — Sabtu, Minggu &amp; libur nasional tidak dihitung. Notifikasi muncul otomatis saat memasuki minggu terakhir / terlambat.</p>' +
     costBoxHTML('repair', isEdit ? (unit.repairCosts || []) : []) +
     costBoxHTML('doc', isEdit ? (unit.docCosts || []) : []) +
     '<label>Catatan Kondisi</label><textarea name="notes" placeholder="Catatan kondisi unit…">' + esc(isEdit ? (unit.notes || '') : '') + '</textarea>' +
@@ -846,8 +850,23 @@ async function unitDetail(id) {
           : infoItem('BPKB', '—')) +
         '</div>' +
         (u.notes ? '<label style="margin-top:18px">Catatan</label><p style="font-size:.9rem;color:var(--muted);line-height:1.6">' + esc(u.notes) + '</p>' : '') +
+        (u.bpkb && S.user.role !== 'mekanik' ? '<div class="m-actions" style="margin-top:18px">' +
+          (u.bpkb.status === 'siap'
+            ? '<span class="badge bpkb-siap" style="font-size:.85rem;padding:8px 16px;border-radius:999px">BPKB SIAP · Diambil ' + fmtDate(u.bpkb.readyAt) + '</span>' +
+              '<button class="btn ghost sm" id="ud-bpkb-ready" title="Kembalikan ke proses">Batalkan</button>'
+            : '<button class="btn primary sm" id="ud-bpkb-ready">' + ic('check', 15) + ' BPKB Sudah Diambil — Tandai Siap</button>') +
+        '</div>' : '') +
         (S.perm.manageUnits ? '<div class="m-actions"><button class="btn navy sm" id="ud-edit">' + ic('pencil', 15) + ' Edit Data Unit</button></div>' : '');
       if (S.perm.manageUnits) $('#ud-edit', ov).addEventListener('click', () => { closeModal(ov); unitForm(u); });
+      const bpBtn = $('#ud-bpkb-ready', ov);
+      if (bpBtn) bpBtn.addEventListener('click', async () => {
+        try {
+          const upd = await API.patch('/units/' + u.id, { bpkbReady: u.bpkb.status !== 'siap' });
+          Object.assign(u, upd);
+          toast(u.bpkb && u.bpkb.status === 'siap' ? 'BPKB ditandai SIAP 🎉 Notifikasi berhenti.' : 'Status BPKB dikembalikan ke proses.', 'ok');
+          renderTab('info');
+        } catch (err) { toast(err.message, 'err'); }
+      });
       return;
     }
 

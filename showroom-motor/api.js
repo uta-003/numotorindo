@@ -130,9 +130,32 @@ function isoMonth(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-/* ---------- BPKB: hitungan hari kerja (Sabtu & Minggu libur) ---------- */
+/* ---------- BPKB: hitungan hari kerja (Sabtu, Minggu & libur nasional) ---------- */
+/* Daftar libur nasional & cuti bersama Indonesia.
+   Update tiap awal tahun sesuai SKB 3 Menteri. Tanggal Hijriah = perkiraan. */
+const LIBUR_NASIONAL = new Set([
+  /* 2025 */
+  '2025-01-01','2025-01-27','2025-01-29','2025-03-14','2025-03-31',
+  '2025-04-01','2025-04-02','2025-04-03','2025-04-07','2025-04-18',
+  '2025-05-01','2025-05-12','2025-05-29','2025-05-30','2025-06-01',
+  '2025-06-06','2025-06-26','2025-08-17','2025-09-05','2025-12-25','2025-12-26',
+  /* 2026 */
+  '2026-01-01','2026-01-16','2026-02-17','2026-03-18','2026-03-19',
+  '2026-03-20','2026-03-21','2026-04-03','2026-05-01','2026-05-14',
+  '2026-05-27','2026-06-01','2026-06-16','2026-08-17','2026-12-25','2026-12-26',
+  /* 2027 (perkiraan) */
+  '2027-01-01','2027-01-05','2027-02-06','2027-03-09','2027-03-10',
+  '2027-03-11','2027-03-26','2027-05-01','2027-05-06','2027-05-17',
+  '2027-05-20','2027-06-01','2027-06-06','2027-08-17','2027-12-25','2027-12-26'
+]);
+
 function isoDay(d) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function isLibur(d) {
+  const wd = d.getDay();
+  return wd === 0 || wd === 6 || LIBUR_NASIONAL.has(isoDay(d));
 }
 
 /* tambah `days` hari kerja dari tanggal mulai */
@@ -141,8 +164,7 @@ function addWorkingDays(startISO, days) {
   let added = 0, guard = 0;
   while (added < days && guard++ < 4000) {
     d.setDate(d.getDate() + 1);
-    const wd = d.getDay();
-    if (wd !== 0 && wd !== 6) added++;
+    if (!isLibur(d)) added++;
   }
   return isoDay(d);
 }
@@ -155,8 +177,7 @@ function workdaysBetween(aISO, bISO) {
   const cur = new Date(a.getTime());
   cur.setDate(cur.getDate() + (forward ? 1 : -1));
   while ((forward ? cur <= b : cur >= b) && guard++ < 4000) {
-    const wd = cur.getDay();
-    if (wd !== 0 && wd !== 6) n++;
+    if (!isLibur(cur)) n++;
     cur.setDate(cur.getDate() + (forward ? 1 : -1));
   }
   return forward ? n : -n;
@@ -169,10 +190,17 @@ function calcBpkb(u) {
   const start = u.bpkbStart || u.purchaseDate || u.soldAt || isoDay(new Date());
   const due = addWorkingDays(start, days);
   const today = isoDay(new Date());
+
+  /* sudah diambil -> SIAP, notifikasi berhenti */
+  if (u.bpkbReady) {
+    return { days, start, due, remainWork: null, calLeft: null,
+      status: 'siap', readyAt: u.bpkbReadyAt || null };
+  }
+
   const remainWork = workdaysBetween(today, due);
   const calLeft = Math.round((new Date(due + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
   const status = calLeft < 0 ? 'terlambat' : (calLeft <= 7 ? 'kritis' : 'proses');
-  return { days, start, due, remainWork, calLeft, status };
+  return { days, start, due, remainWork, calLeft, status, readyAt: null };
 }
 
 /* ---------- Validator ---------- */
@@ -594,6 +622,15 @@ async function handleApi(req, res, url) {
           const n = parseInt(String(b.sellPrice).replace(/[^0-9]/g, ''), 10);
           if (isNaN(n) || n < 0) return fail(res, 400, 'Harga jual tidak valid', { sellPrice: 'Harus angka ≥ 0' });
           u.sellPrice = n;
+        }
+        if (typeof b.bpkbReady === 'boolean') {
+          if (!u.bpkbDays) return fail(res, 400, 'Unit ini belum memiliki proses BPKB');
+          if (!(me.role === 'admin' || me.role === 'owner' || me.role === 'sales')) {
+            return fail(res, 403, 'Tidak diizinkan mengubah status BPKB');
+          }
+          u.bpkbReady = b.bpkbReady;
+          if (u.bpkbReady) u.bpkbReadyAt = isoDay(new Date());
+          else delete u.bpkbReadyAt;
         }
         db.save();
         return json(res, 200, serializeUnit(u, me));
