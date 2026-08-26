@@ -1,0 +1,117 @@
+/* ============ Katalog: toolbar & filter ============ */
+.toolbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:14px}
+.search-box{flex:1;min-width:230px;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.65rem 1.1rem;transition:.2s}
+.search-box:focus-within{border-color:var(--orange);box-shadow:0 0 0 4px rgba(247,127,0,.15)}
+.search-box svg{width:18px;height:18px;color:var(--muted);flex:none}
+.search-box input{border:0;outline:0;flex:1;background:none;font-size:.95rem;min-width:0}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{padding:.55rem 1.05rem;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:.87rem;color:var(--navy);cursor:pointer;transition:.2s}
+.pill:hover{border-color:var(--orange);color:var(--orange)}
+.pill.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.sort-select{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:.62rem 1rem;font-weight:700;font-size:.87rem;color:var(--navy);outline:none;cursor:pointer}
+.result-count{font-size:.87rem;color:var(--muted);margin-bottom:22px}
+
+/* ============ Kartu motor ============ */
+.bike-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:26px}
+.card.bike{background:#fff;border-radius:22px;overflow:hidden;border:1px solid var(--line);transition:transform .3s,box-shadow .3s;box-shadow:var(--shadow-xs);display:flex;flex-direction:column}
+.card.bike:hover{transform:translateY(-8px);box-shadow:0 30px 60px -22px rgba(0,48,73,.35)}
+.card-media{position:relative;height:185px;display:grid;place-items:center;overflow:hidden}
+.card-media img{width:82%;height:auto;transition:transform .4s;filter:drop-shadow(0 14px 16px rgba(0,48,73,.28));z-index:1}
+.card.bike:hover .card-media img{transform:scale(1.06) translateX(5px)}
+.g-sport{background:linear-gradient(135deg,#fcbf49,#f77f00)}
+.g-matic{background:linear-gradient(135deg,#ffe9c7,#fcbf49)}
+.g-bebek{background:linear-gradient(135deg,#ffc9c2,#f77f00)}
+.g-retro{background:linear-gradient(135deg,#d9edf6,#8ec6dd)}
+.fav-btn{position:absolute;top:12px;right:12px;z-index:3;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.94);display:grid;place-items:center;cursor:pointer;color:#9db1bf;transition:.2s}
+.fav-btn svg{width:17px;height:17px}
+.fav-btn.on{color:var(--red)}
+.fav-btn.on svg{fill:currentColor}
+.fav-btn:hover{transform:scale(1.12)}
+.card-body{padding:18px 18px 20px;display:flex;flex-direction:column;gap:9px;flex:1}
+.card-brand{font-size:.68rem;font-weight:800;letter-spacing:.16em;color:var(--orange)}
+.card-body h3{font-size:1.12rem;color:var(--navy);letter-spacing:-.01em}
+.spec-chips{list-style:none;display:flex;flex-wrap:wrap;gap:7px;margin:2px 0}
+.spec-chips li{font-size:.74rem;font-weight:700;color:#41637a;background:#f2f7fa;border-radius:8px;padding:.32rem .55rem}
+.card-foot{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:14px}
+.price strong{display:block;font-size:1.13rem;color:var(--red);letter-spacing:-.01em}
+.price s{font-size:.78rem;color:#9db1bf}
+.card-actions{display:flex;gap:8px;align-items:center}
+.empty{display:none;text-align:center;padding:60px 20px;color:var(--muted)}
+.empty.show{display:block}
+.empty .big{font-size:3rem;margin-bottom:10px}
+.empty h3{color:var(--navy);margin-bottom:6px}
+
+/* ============ Keunggulan ============ */
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
+.feature{--acc:var(--red);background:#fff;border:1px solid var(--line);border-radius:24px;padding:30px 26px;transition:.3s;position:relative;overflow:hidden}
+.feature.f2{--acc:var(--orange)}
+.feature.f3{--acc:#dfa000}
+.feature.f4{--acc:var(--navy)}
+.feature::before{content:"";position:absolute;width:120px;height:120px;border-radius:50%;background:var(--acc);opacity:.08;top:-34px;right:-34px}
+.feature:hover{transform:translateY(-6px);box-shadow:0 26px 50px -20px rgba(0,48,73,.25)}
+.f-ico{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 13%,white);color:var(--acc);margin-bottom:18px}
+.f-ico svg{width:26px;height:26px}
+.feature h3{font-size:1.05rem;color:var(--navy);margin-bottom:8px}
+.feature p{font-size:.9rem;color:var(--muted)}
+
+/* ============ Jual / Konsinyasi ============ */
+.sell{background:radial-gradient(700px 400px at 100% 0%,rgba(252,191,73,.20),transparent 60%),linear-gradient(#fffbf5,#fff6ea)}
+.sell-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.steps{list-style:none;display:grid;gap:18px;margin-top:28px}
+.step{display:flex;gap:16px}
+.step-num{width:44px;height:44px;flex:none;border-radius:14px;background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;font-weight:800;display:grid;place-items:center;box-shadow:0 10px 20px -8px rgba(214,40,40,.5)}
+.step h3{font-size:1rem;color:var(--navy)}
+.step p{font-size:.88rem;color:var(--muted);margin-top:2px}
+.sell-points{margin-top:26px;display:flex;flex-wrap:wrap;gap:10px}
+.point{font-size:.82rem;font-weight:700;background:#fff;border:1px dashed rgba(247,127,0,.55);color:var(--navy);padding:.5rem .9rem;border-radius:999px}
+.card-form{background:#fff;border:1px solid var(--line);border-radius:26px;padding:30px;box-shadow:0 30px 70px -34px rgba(0,48,73,.35)}
+.card-form>h3{color:var(--navy);font-size:1.25rem;margin-bottom:4px}
+.form-sub{color:var(--muted);font-size:.9rem;margin-bottom:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:.8rem;font-weight:800;color:var(--navy)}
+.field input,.field select,.field textarea{border:1.5px solid var(--line);border-radius:12px;padding:.7rem .9rem;font-size:.92rem;outline:none;background:#fdfdfb;transition:.2s;width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--orange);box-shadow:0 0 0 4px rgba(247,127,0,.14)}
+.field textarea{resize:vertical;min-height:80px}
+.field .err{font-size:.74rem;color:var(--red);display:none;font-weight:600}
+.field.invalid input,.field.invalid select{border-color:var(--red)}
+.field.invalid .err{display:block}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+.chip-check{position:relative}
+.chip-check input{position:absolute;opacity:0;width:0;height:0}
+.chip-check label{display:inline-flex;gap:6px;align-items:center;padding:.5rem .85rem;border-radius:999px;border:1.5px solid var(--line);font-size:.8rem;font-weight:700;color:#41637a;cursor:pointer;transition:.2s;user-select:none}
+.chip-check input:checked+label{background:var(--yellow);border-color:var(--yellow);color:var(--navy)}
+.form-foot{margin-top:10px;font-size:.76rem;color:var(--muted);text-align:center}
+
+/* ============ Testimoni ============ */
+.testi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.testi{background:#fff;border:1px solid var(--line);border-radius:24px;padding:28px;position:relative;transition:.3s}
+.testi:hover{transform:translateY(-6px);box-shadow:0 26px 50px -22px rgba(0,48,73,.25)}
+.testi::before{content:"\201C";position:absolute;top:2px;right:22px;font-size:5.5rem;font-family:Georgia,serif;color:rgba(247,127,0,.18);line-height:1}
+.stars{color:var(--orange);letter-spacing:2px;font-size:.9rem;margin-bottom:12px}
+.testi p{font-size:.93rem;color:#41637a;position:relative}
+.testi-who{display:flex;gap:12px;align-items:center;margin-top:18px}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;font-size:.9rem;background:linear-gradient(135deg,var(--navy),#0b5e8f);flex:none}
+.avatar.t2{background:linear-gradient(135deg,var(--red),var(--orange))}
+.avatar.t3{background:linear-gradient(135deg,var(--orange),var(--yellow));color:var(--navy)}
+.testi-who strong{display:block;font-size:.92rem;color:var(--navy)}
+.testi-who span{font-size:.78rem;color:var(--muted)}
+
+/* ============ FAQ ============ */
+.faq-list{max-width:760px;margin-inline:auto;display:grid;gap:14px}
+details.faq-item{background:#fff;border:1.5px solid var(--line);border-radius:18px;overflow:hidden;transition:.25s}
+details.faq-item[open]{border-color:rgba(247,127,0,.55);box-shadow:0 16px 34px -18px rgba(247,127,0,.4)}
+details summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px 22px;font-weight:700;color:var(--navy);font-size:.98rem}
+details summary::-webkit-details-marker{display:none}
+summary .chev{width:30px;height:30px;flex:none;border-radius:50%;background:#fdf1dd;display:grid;place-items:center;color:var(--orange);transition:.3s;font-size:1.15rem;font-weight:800;line-height:1}
+details[open] .chev{transform:rotate(45deg);background:var(--orange);color:#fff}
+.faq-a{padding:0 22px 20px;color:var(--muted);font-size:.92rem}
+
+/* ============ CTA band ============ */
+.cta-band{position:relative;overflow:hidden;background:linear-gradient(120deg,var(--red),#e85d04 55%,var(--orange));border-radius:32px;padding:clamp(40px,6vw,70px) clamp(22px,5vw,60px);text-align:center;color:#fff;box-shadow:0 40px 80px -30px rgba(214,40,40,.55)}
+.cta-band::before,.cta-band::after{content:"";position:absolute;border:2px dashed rgba(255,255,255,.3);border-radius:50%}
+.cta-band::before{width:220px;height:220px;top:-90px;left:-60px;animation:spin 40s linear infinite}
+.cta-band::after{width:280px;height:280px;bottom:-140px;right:-80px;animation:spin 46s linear infinite reverse}
+.cta-band h2{font-size:clamp(1.7rem,3.4vw,2.5rem);letter-spacing:-.02em;margin-bottom:12px;position:relative;z-index:1}
+.cta-band p{color:rgba(255,255,255,.92);max-width:540px;margin:0 auto 28px;position:relative;z-index:1}
+.cta-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}

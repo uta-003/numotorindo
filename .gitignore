@@ -1,0 +1,24 @@
+# ===== NuMotorindo =====
+
+# Data runtime (dibuat otomatis dari seed saat server pertama kali jalan)
+**/data/db.json
+aplikasi/data/backups/
+backend/data/
+showroom-motor/data/
+
+# Dependencies (jaga-jaga bila nanti ada package install)
+node_modules/
+
+# Environment & rahasia
+.env
+.env.*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Log
+*.log

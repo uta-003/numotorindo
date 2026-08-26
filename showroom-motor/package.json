@@ -1,0 +1,13 @@
+{
+  "name": "numo-showroom",
+  "version": "1.0.0",
+  "description": "Aplikasi Showroom Motor Bekas — modal, biaya perbaikan & dokumen, harga jual, laba/rugi, invoice, manajemen user & role",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "license": "MIT"
+}

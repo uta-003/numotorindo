@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NuMo Showroom — Manajemen Motor Bekas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23003049'/%3E%3Ccircle cx='20' cy='43' r='8' fill='%23FCBF49'/%3E%3Ccircle cx='46' cy='43' r='8' fill='%23F77F00'/%3E%3Cpath d='M16 25l10-9h9l9 11-7 5h-9l-4 9' stroke='%23D62828' stroke-width='4.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="login-view" class="hidden">
+  <div class="login-left">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="login-brand">
+      <div class="logo-badge" data-logo></div>
+      <h1>NuMo<br>Showroom</h1>
+      <p>Sistem manajemen motor bekas — modal, biaya, invoice &amp; laba rugi dalam satu genggaman.</p>
+      <ul class="feature-list">
+        <li><span class="dot d1"></span> Kelola biaya pembelian, perbaikan &amp; dokumen</li>
+        <li><span class="dot d2"></span> Total modal &amp; laba/rugi otomatis per unit</li>
+        <li><span class="dot d3"></span> Invoice siap cetak dengan terbilang</li>
+        <li><span class="dot d4"></span> Multi-role: admin, pemilik, sales, mekanik</li>
+      </ul>
+    </div>
+  </div>
+  <div class="login-right">
+    <form id="login-form" class="login-card" autocomplete="off">
+      <div class="logo-badge small" data-logo></div>
+      <h2>Selamat Datang 👋</h2>
+      <p class="sub">Masuk untuk mengelola showroom Anda</p>
+      <div id="login-err" class="alert error hidden"></div>
+      <label for="lg-user">Username</label>
+      <input id="lg-user" type="text" placeholder="mis. admin" autocomplete="username" required>
+      <label for="lg-pass">Password</label>
+      <input id="lg-pass" type="password" placeholder="••••••••" autocomplete="current-password" required>
+      <button type="submit" class="btn primary block" id="lg-btn">Masuk ke Dashboard</button>
+      <div class="demo-box">
+        <span class="demo-title">Akun demo — klik untuk mengisi:</span>
+        <div class="chips">
+          <button type="button" class="chip c-admin" data-u="admin" data-p="admin123">Admin</button>
+          <button type="button" class="chip c-owner" data-u="owner" data-p="owner123">Owner</button>
+          <button type="button" class="chip c-sales" data-u="sales" data-p="sales123">Sales</button>
+          <button type="button" class="chip c-mekanik" data-u="mekanik" data-p="mekanik123">Mekanik</button>
+        </div>
+      </div>
+    </form>
+    <p class="copyright">© 2026 NuMo Showroom · Dibangun tanpa dependensi eksternal</p>
+  </div>
+</div>
+
+<!-- ==================== APLIKASI ==================== -->
+<div id="app-view" class="hidden">
+  <div id="side-backdrop"></div>
+  <aside id="sidebar">
+    <div class="brand-row">
+      <div class="logo-badge small" data-logo></div>
+      <div class="brand-text"><strong>NuMo</strong><span>Showroom</span></div>
+    </div>
+    <nav id="side-nav"></nav>
+    <div class="user-box">
+      <div class="avatar" id="ub-avatar">?</div>
+      <div class="ub-info"><strong id="ub-name">—</strong><span id="ub-role">—</span></div>
+      <button class="icon-btn light" id="btn-logout" title="Keluar"></button>
+    </div>
+  </aside>
+
+  <div id="main">
+    <header id="topbar">
+      <button class="icon-btn" id="btn-burger" title="Menu"></button>
+      <button class="icon-btn" id="btn-side-pc" title="Ciutkan / buka sidebar"></button>
+      <div class="pg-title"><h1 id="pg-title">Dashboard</h1><p id="pg-sub"></p></div>
+      <span class="clock" id="clock"></span>
+      <div class="profile-chip">
+        <div class="avatar sm" id="pc-avatar">?</div>
+        <div class="pc-info"><strong id="pc-name">—</strong><span id="pc-role">—</span></div>
+      </div>
+    </header>
+    <main id="content"></main>
+  </div>
+
+  <!-- Bottom navigation (mobile) -->
+  <nav id="bottom-nav"></nav>
+</div>
+
+<div id="toast-root"></div>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

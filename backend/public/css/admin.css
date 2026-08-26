@@ -1,0 +1,96 @@
+/* ============ NuMotorindo Admin Dashboard ============ */
+:root{
+  --navy:#003049; --navy-700:#0b3c56; --ink:#0e2433;
+  --red:#d62828; --orange:#f77f00; --yellow:#fcbf49;
+  --paper:#fffdf8; --line:rgba(0,48,73,.12); --muted:#5b7183;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#f6f1e7;color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+
+/* ---- Topbar ---- */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;background:var(--navy);color:#fff;padding:12px clamp(16px,4vw,32px);box-shadow:0 8px 24px -10px rgba(0,48,73,.5)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;color:#fff;text-decoration:none}
+.logo-mark{width:36px;height:36px}
+.brand em{font-style:normal;background:linear-gradient(135deg,var(--red),var(--orange));-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.brand b{color:var(--yellow);font-weight:800;margin-left:4px;font-size:.85em}
+.api-status{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:.82rem;font-weight:700;color:#cfe3ef;background:rgba(255,255,255,.08);padding:.45rem .9rem;border-radius:999px}
+.dot{width:9px;height:9px;border-radius:50%;background:#9db1bf;display:inline-block}
+.dot.online{background:#22c15e;box-shadow:0 0 0 4px rgba(34,193,94,.25)}
+.dot.offline{background:var(--red);box-shadow:0 0 0 4px rgba(214,40,40,.25)}
+
+/* ---- Layout ---- */
+.container{width:min(1160px,94%);margin-inline:auto;padding-block:26px 60px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+.stat-card .num{font-size:1.65rem;font-weight:800;color:var(--navy);letter-spacing:-.02em;line-height:1.1}
+.stat-card .lbl{font-size:.78rem;color:var(--muted);font-weight:600;margin-top:2px}
+.stat-card.accent .num{color:var(--red)}
+
+/* ---- Tabs ---- */
+.tabs{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.tab{border:1.5px solid var(--line);background:#fff;color:var(--navy);font-weight:800;font-size:.9rem;padding:.65rem 1.2rem;border-radius:999px;cursor:pointer;transition:.2s}
+.tab:hover{border-color:var(--orange);color:var(--orange)}
+.tab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+
+/* ---- Panel & tabel ---- */
+.panel{background:#fff;border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 20px 44px -30px rgba(0,48,73,.35)}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.panel-head h2{font-size:1.15rem;color:var(--navy)}
+.table-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;min-width:760px}
+.tbl th{text-align:left;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#8aa2b3;padding:.6rem .7rem;border-bottom:2px solid var(--line);white-space:nowrap}
+.tbl td{padding:.75rem .7rem;border-bottom:1px solid rgba(0,48,73,.07);vertical-align:middle;font-size:.9rem}
+.tbl tbody tr:hover{background:#fdf9f1}
+.tbl small{color:#9db1bf;font-weight:600}
+.chip{display:inline-block;background:#eef5f9;color:#41637a;border-radius:999px;padding:.28rem .7rem;font-size:.74rem;font-weight:700;white-space:nowrap}
+.badge-cond{display:inline-block;border-radius:999px;padding:.28rem .7rem;font-size:.72rem;font-weight:800;white-space:nowrap}
+.badge-cond.like-new{background:#0a8f46;color:#fff}
+.badge-cond.bagus{background:var(--yellow);color:var(--navy)}
+.badge-cond.muluz{background:#eef2f5;color:var(--navy)}
+.st{display:inline-block;border-radius:999px;padding:.28rem .7rem;font-size:.72rem;font-weight:800}
+.st.baru{background:#fff4e0;color:var(--orange)}
+.st.dihubungi{background:#e8f1fb;color:#1668c9}
+.st.nego{background:#f3ecfd;color:#7a3ff2}
+.st.deal{background:#e5f8ec;color:#0a8f46}
+.st.batal{background:#fdeaea;color:var(--red)}
+.actions{white-space:nowrap}
+.row-empty td{text-align:center;color:var(--muted);padding:38px 10px !important}
+
+/* ---- Tombol ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border:2px solid transparent;border-radius:999px;font-weight:800;cursor:pointer;transition:.2s;text-decoration:none;line-height:1}
+.btn.primary{background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;padding:.7rem 1.3rem;font-size:.9rem;box-shadow:0 10px 22px -10px rgba(214,40,40,.55)}
+.btn.primary:hover{transform:translateY(-2px)}
+.btn.ghost{background:#fff;border-color:rgba(0,48,73,.2);color:var(--navy);padding:.6rem 1.1rem;font-size:.88rem}
+.btn.ghost:hover{border-color:var(--navy)}
+.btn.sm{padding:.42rem .85rem;font-size:.78rem;border-radius:10px}
+.btn.danger{background:#fdeaea;color:var(--red);border-color:transparent}
+.btn.danger:hover{background:var(--red);color:#fff}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
+/* ---- Pesan ---- */
+.msg{margin-bottom:14px;padding:.8rem 1rem;border-radius:12px;font-size:.88rem;font-weight:700}
+.msg.success{background:#e5f8ec;color:#0a6b39;border:1px solid #bfe9cf}
+.msg.error{background:#fdeaea;color:#a31d1d;border:1px solid #f3c4c4}
+
+/* ---- Drawer form ---- */
+.overlay{position:fixed;inset:0;z-index:100;background:rgba(0,24,38,.55);backdrop-filter:blur(4px);display:flex;justify-content:flex-end}
+.overlay.hidden{display:none}
+.drawer{width:min(460px,100%);height:100%;background:var(--paper);overflow-y:auto;padding:24px;animation:slideIn .3s cubic-bezier(.2,.7,.3,1)}
+@keyframes slideIn{from{transform:translateX(40px);opacity:0}}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.drawer-head h3{color:var(--navy);font-size:1.2rem}
+.close{width:38px;height:38px;border-radius:50%;border:0;background:#f1ede3;color:var(--navy);font-size:1rem;font-weight:800;cursor:pointer;transition:.25s}
+.close:hover{background:var(--yellow);transform:rotate(90deg)}
+#bikeForm label{display:flex;flex-direction:column;gap:5px;font-size:.78rem;font-weight:800;color:var(--navy);margin-bottom:13px}
+#bikeForm input,#bikeForm select,#bikeForm textarea{border:1.5px solid var(--line);border-radius:11px;padding:.62rem .8rem;font-size:.92rem;outline:none;background:#fff;width:100%;transition:.2s}
+#bikeForm input:focus,#bikeForm select:focus,#bikeForm textarea:focus{border-color:var(--orange);box-shadow:0 0 0 4px rgba(247,127,0,.14)}
+#bikeForm textarea{resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.form-hint{font-size:.74rem;color:var(--muted);margin-bottom:16px}
+.drawer-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+
+@media (max-width:640px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .api-status{display:none}
+}

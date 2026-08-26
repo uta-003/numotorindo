@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · NuMotorindo</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/">
+    <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lgm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D62828"/><stop offset=".6" stop-color="#F77F00"/><stop offset="1" stop-color="#FCBF49"/></linearGradient></defs><rect width="48" height="48" rx="14" fill="url(#lgm)"/><circle cx="17" cy="31" r="7.5" fill="none" stroke="#fff" stroke-width="3.5"/><circle cx="34" cy="31" r="7.5" fill="none" stroke="#fff" stroke-width="3.5"/><path d="M8 18h14l4-5h8" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="34" cy="31" r="2.4" fill="#fff"/></svg>
+    <span>Nu<em>Motor</em>indo <b>Admin</b></span>
+  </a>
+  <span class="api-status" id="apiStatus"><i class="dot"></i><span id="apiText">Memeriksa API…</span></span>
+  <a class="btn ghost sm" href="/" target="_blank">↗ Lihat Website</a>
+</header>
+
+<main class="container">
+
+  <section class="stats" id="stats"></section>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="motor">🏍️ Katalog Motor (<span id="cntMotor">0</span>)</button>
+    <button class="tab" data-tab="permintaan">📨 Permintaan Jual (<span id="cntReq">0</span>)</button>
+  </nav>
+
+  <!-- ============ TAB: MOTOR ============ -->
+  <section class="panel" id="tab-motor">
+    <div class="panel-head">
+      <h2>Katalog Motor</h2>
+      <button class="btn primary" id="btnAdd">＋ Tambah Motor</button>
+    </div>
+    <div id="msgMotor" class="msg" hidden></div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Motor</th><th>Merek</th><th>Tipe</th><th>Tahun</th><th>KM</th><th>Harga</th><th>Kondisi</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="tbodyMotor"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ TAB: PERMINTAAN ============ -->
+  <section class="panel" id="tab-permintaan" hidden>
+    <div class="panel-head">
+      <h2>Pengajuan Jual Motor Masuk</h2>
+      <button class="btn ghost sm" id="btnReloadReq">⟳ Muat Ulang</button>
+    </div>
+    <div id="msgReq" class="msg" hidden></div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Tanggal</th><th>Pemilik</th><th>Motor</th><th>Harga Harapan</th><th>Kelengkapan</th><th>Status</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="tbodyReq"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- ============ DRAWER FORM MOTOR ============ -->
+<div class="overlay hidden" id="overlay">
+  <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="drawer-head">
+      <h3 id="drawerTitle">Tambah Motor</h3>
+      <button class="close" id="btnCloseDrawer" aria-label="Tutup form">✕</button>
+    </div>
+    <form id="bikeForm" novalidate>
+      <input type="hidden" id="fId">
+      <label>Nama Motor *<input id="fNama" placeholder="mis. Honda Vario 160 ABS"></label>
+      <div class="grid2">
+        <label>Merek *<select id="fMerek"><option>Honda</option><option>Yamaha</option><option>Suzuki</option><option>Kawasaki</option><option>Lainnya</option></select></label>
+        <label>Tipe *<select id="fType"><option value="matic">Skutik</option><option value="sport">Sport</option><option value="bebek">Bebek Sport</option><option value="retro">Retro Klasik</option></select></label>
+      </div>
+      <div class="grid3">
+        <label>Tahun *<input id="fTahun" type="number" min="1990" max="2027" placeholder="2023"></label>
+        <label>Kilometer *<input id="fKm" type="number" min="0" placeholder="8000"></label>
+        <label>CC *<input id="fCc" type="number" min="50" placeholder="160"></label>
+      </div>
+      <div class="grid2">
+        <label>Transmisi *<input id="fTrans" list="transList" placeholder="CVT / Manual (6)">
+          <datalist id="transList"><option>CVT</option><option>Manual (4)</option><option>Manual (5)</option><option>Manual (6)</option></datalist>
+        </label>
+        <label>Kondisi *<select id="fCond"><option value="like-new">Like New</option><option value="bagus">Bagus</option><option value="muluz">Mulus</option></select></label>
+      </div>
+      <div class="grid2">
+        <label>Harga (Rp) *<input id="fHarga" type="number" min="1000000" step="100000" placeholder="27500000"></label>
+        <label>Harga Sebelum Diskon<input id="fOldPrice" type="number" min="0" step="100000" placeholder="kosongkan jika tidak ada"></label>
+      </div>
+      <div class="grid2">
+        <label>Warna *<input id="fWarna" placeholder="mis. Hitam Doff"></label>
+        <label>Gambar (opsional)<input id="fImg" placeholder="otomatis sesuai tipe"></label>
+      </div>
+      <label>Deskripsi<textarea id="fDesc" rows="3" placeholder="Kondisi unit, kelengkapan, cerita menarik…"></textarea></label>
+      <p class="form-hint">Field bertanda * wajib diisi. Gambar kosong = otomatis pakai ilustrasi sesuai tipe motor.</p>
+      <div class="drawer-actions">
+        <button type="button" class="btn ghost" id="btnCancel">Batal</button>
+        <button type="submit" class="btn primary" id="btnSave">💾 Simpan Motor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/admin/js/admin.js"></script>
+</body>
+</html>

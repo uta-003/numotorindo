@@ -1,0 +1,40 @@
+/* ============ Responsive ============ */
+@media (max-width:1020px){
+  .hero-grid{grid-template-columns:1fr;gap:48px}
+  .hero-visual{max-width:520px;margin-inline:auto;width:100%}
+  .fc1{left:0}.fc2{left:-4%}.fc3{right:0}
+  .sell-grid{grid-template-columns:1fr;gap:44px}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .modal-card{grid-template-columns:1fr}
+  .modal-media{min-height:250px}
+}
+@media (max-width:860px){
+  .burger{display:flex}
+  .nav-cta{display:none}
+  .nav-links{position:fixed;left:4vw;right:4vw;top:70px;margin-left:0;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);flex-direction:column;align-items:stretch;padding:12px;gap:4px;transform:translateY(-14px);opacity:0;visibility:hidden;transition:.3s}
+  .header.open .nav-links{opacity:1;visibility:visible;transform:none}
+  .nav-links a{padding:.85rem 1.1rem}
+  .hero{padding-top:130px}
+  .hero-stats{gap:24px}
+  .stat-num{font-size:1.6rem}
+}
+@media (max-width:640px){
+  .container{width:90%}
+  .hero-search{flex-wrap:wrap;border-radius:22px;padding:12px}
+  .hero-search input{flex:1 1 100%;padding:.5rem .4rem}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .pills{justify-content:center}
+  .form-row{grid-template-columns:1fr}
+  .spec-grid{grid-template-columns:1fr 1fr}
+  .footer-grid{grid-template-columns:1fr}
+  .float-card{padding:.55rem .7rem}
+  .fc-sub{display:none}
+  .modal-body{padding:26px 22px}
+  .toast-wrap{left:14px;right:14px}
+}
+
+/* ============ Aksesibilitas: kurangi gerakan ============ */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001s!important;transition-duration:.001s!important}
+  .reveal{opacity:1;transform:none}
+}

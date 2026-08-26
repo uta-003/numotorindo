@@ -1,0 +1,72 @@
+/* ============ NuMotorindo — Base & Design Tokens ============ */
+:root{
+  --navy:#003049; --navy-700:#0b3c56; --ink:#0e2433;
+  --red:#d62828; --orange:#f77f00; --yellow:#fcbf49;
+  --cream:#fff8ee; --paper:#fffdf8;
+  --muted:#5b7183; --line:rgba(0,48,73,.12);
+  --shadow-xs:0 4px 14px -6px rgba(0,48,73,.16);
+  --shadow-lg:0 30px 60px -22px rgba(0,48,73,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:92px}
+body{font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+::selection{background:var(--yellow);color:var(--navy)}
+:focus-visible{outline:3px solid rgba(247,127,0,.5);outline-offset:2px;border-radius:8px}
+body::-webkit-scrollbar{width:10px}
+body::-webkit-scrollbar-track{background:#f3ead9}
+body::-webkit-scrollbar-thumb{background:#0b3c56;border-radius:99px}
+body.no-scroll{overflow:hidden}
+
+.container{width:min(1160px,92%);margin-inline:auto}
+.section{padding-block:clamp(64px,9vw,110px)}
+.section.alt{background:linear-gradient(#fffbf5,#fff8ee)}
+
+.sec-head{max-width:640px;margin-bottom:44px}
+.sec-head.center{margin-inline:auto;text-align:center}
+.sec-tag{display:inline-flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);color:var(--red);font-weight:800;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;padding:.45rem .95rem;border-radius:999px;box-shadow:var(--shadow-xs)}
+.sec-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--orange))}
+.sec-title{font-size:clamp(1.75rem,3.6vw,2.6rem);line-height:1.15;color:var(--navy);font-weight:800;letter-spacing:-.02em;margin:.9rem 0 .7rem}
+.sec-sub{color:var(--muted)}
+.grad-text{background:linear-gradient(92deg,var(--red) 5%,var(--orange) 55%,var(--yellow));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---- Tombol ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;padding:.85rem 1.5rem;border-radius:999px;font-weight:800;font-size:.95rem;border:2px solid transparent;cursor:pointer;transition:.25s;text-align:center;line-height:1}
+.btn svg{width:18px;height:18px;flex:none}
+.btn:hover{transform:translateY(-3px)}
+.btn:active{transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;box-shadow:0 12px 26px -10px rgba(214,40,40,.55)}
+.btn-primary:hover{box-shadow:0 18px 34px -10px rgba(214,40,40,.6)}
+.btn-dark{background:var(--navy);color:#fff}
+.btn-yellow{background:var(--yellow);color:var(--navy);box-shadow:0 12px 26px -12px rgba(252,191,73,.9)}
+.btn-white{background:#fff;color:var(--navy);box-shadow:0 14px 30px -14px rgba(0,24,38,.5)}
+.btn-wa{background:#22c15e;color:#fff;box-shadow:0 12px 26px -10px rgba(34,193,94,.55)}
+.btn-ghost{border-color:rgba(0,48,73,.22);color:var(--navy);background:#fff}
+.btn-ghost:hover{border-color:var(--navy);background:#f2f8fb}
+.btn-sm{padding:.62rem 1.1rem;font-size:.85rem}
+.btn-icon{width:42px;height:42px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:2px solid rgba(0,48,73,.15);background:#fff;color:var(--navy);cursor:pointer;transition:.25s}
+.btn-icon svg{width:18px;height:18px}
+.btn-icon.wa{color:#22c15e;border-color:rgba(34,193,94,.45)}
+
+/* ---- Badge ---- */
+.badge{position:absolute;top:12px;display:inline-flex;align-items:center;gap:6px;padding:.35rem .7rem;border-radius:999px;font-size:.72rem;font-weight:800;letter-spacing:.03em;z-index:2}
+.badge-year{right:58px;background:var(--navy);color:#fff}
+.badge-cond.like-new{left:12px;background:#0a8f46;color:#fff}
+.badge-cond.bagus{left:12px;background:var(--yellow);color:var(--navy)}
+.badge-cond.muluz{left:12px;background:rgba(255,255,255,.94);color:var(--navy)}
+
+/* ---- Animasi reveal saat scroll ---- */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}
+
+/* ---- Toast notifikasi ---- */
+.toast-wrap{position:fixed;left:20px;bottom:20px;z-index:300;display:flex;flex-direction:column;gap:10px}
+.toast{display:flex;gap:10px;align-items:flex-start;background:var(--navy);color:#fff;padding:.9rem 1.15rem;border-radius:14px;box-shadow:var(--shadow-lg);animation:toast-in .35s ease;max-width:min(360px,86vw);font-size:.9rem;font-weight:600}
+.toast::before{content:"";width:9px;height:9px;border-radius:50%;background:#22c15e;margin-top:6px;flex:none}
+.toast.error::before{background:var(--red)}
+.toast.out{animation:toast-out .3s forwards}
+@keyframes toast-in{from{opacity:0;transform:translateY(14px)}}
+@keyframes toast-out{to{opacity:0;transform:translateX(-14px)}}
