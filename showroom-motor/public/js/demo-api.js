@@ -21,6 +21,9 @@ function todayISO() {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
+function isoMonth(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
 function isoDay(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 function isLibur(dt) { const w = dt.getDay(); return w === 0 || w === 6 || HOLIDAY.has(isoDay(dt)); }
 function addWD(startISO, days) {
